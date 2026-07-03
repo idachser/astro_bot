@@ -8,4 +8,4 @@ def add_user(user: dict) -> None:
 
 
 def get_users_ids() -> list:
-    return read_from_db(DB, select_users_id)[0]
+    return [row[0] for row in read_from_db(DB, select_users_id)]

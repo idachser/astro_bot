@@ -1,27 +1,43 @@
 import asyncio
-from datetime import date
+import logging
+from datetime import date, timedelta
+
 from aiogram import Bot
 
 from astro_bot.config import SATURDAY, SECONDS_PER_DAY
-from astro_bot.services.events import write_events
+from astro_bot.keyboards.inline_keyboard import get_inline_week_keyboard
+from astro_bot.services.events import get_events_between, sync_events
 from astro_bot.services.users import get_users_ids
-from astro_bot.handlers.week import get_week_msg_for_autosend
+from astro_bot.templates import WEEK_DIGEST_MESSAGE
 
 
-async def get_new_events_every_saturday(bot: Bot) -> None:
-    write_events()
+async def send_weekly_digest(bot: Bot) -> None:
+    sync_events()
 
-    users_ids = get_users_ids()
-    for user_id in users_ids:
-        await get_week_msg_for_autosend(bot=bot, user_id=user_id)
+    today = date.today()
+    events = get_events_between(today, today + timedelta(days=6))
+    if not events:
+        logging.warning("No events for the weekly digest, nothing sent")
+        return
+
+    digest = WEEK_DIGEST_MESSAGE(events)
+    for user_id in get_users_ids():
+        try:
+            await bot.send_message(
+                user_id,
+                digest,
+                reply_markup=get_inline_week_keyboard(today),
+                disable_web_page_preview=True,
+            )
+        except Exception as err:
+            logging.error(f"Digest was not sent to {user_id}: {err}")
 
 
 async def scheduler(bot: Bot) -> None:
-    """Scheduler for checking events updates every saturday"""
+    """Scheduler for syncing events and sending digest every saturday"""
 
     while True:
-        weekday = date.today().weekday()
-        if weekday == SATURDAY:
-            await get_new_events_every_saturday(bot)
+        if date.today().weekday() == SATURDAY:
+            await send_weekly_digest(bot)
 
         await asyncio.sleep(SECONDS_PER_DAY)

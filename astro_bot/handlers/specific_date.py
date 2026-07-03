@@ -1,21 +1,22 @@
-from string import Template
-from datetime import datetime
+from datetime import date, datetime
+
 from aiogram import Dispatcher, types
 
-from astro_bot.handlers.get_specific_date_event import get_message_for_user
+from astro_bot.handlers.get_specific_date_event import get_message_for_day
+from astro_bot.templates import WRONG_DATE_MESSAGE
 
 
 async def get_day(message: types.Message) -> None:
-    date_template = "$weekday, $input_date"
-    year = datetime.today().year
-    target_date = Template(date_template).substitute(
-        weekday=datetime.strptime(f"{year} {message.text}", "%Y %B %d").strftime("%A"),
-        input_date=message.text,
-    )
+    try:
+        parsed = datetime.strptime(message.text.strip(), "%B %d")
+    except ValueError:
+        await message.reply(WRONG_DATE_MESSAGE)
+        return
 
-    msg = get_message_for_user(target_date)
+    day = date(date.today().year, parsed.month, parsed.day)
+    msg = get_message_for_day(day)
 
-    await message.reply(msg)
+    await message.reply(msg, disable_web_page_preview=True)
 
 
 def register_handler_specific_day(dp: Dispatcher) -> None:

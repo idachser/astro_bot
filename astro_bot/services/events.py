@@ -58,12 +58,3 @@ def get_events_between(start: date, end: date, db: str = DB) -> list:
     return read_from_db(
         db, select_events_between, (start.isoformat(), end.isoformat())
     )
-
-
-# Temporary shims until handlers are migrated to the new API (stage 3)
-def write_events() -> None:
-    sync_events()
-
-
-def get_events(date=None, count=None) -> list:
-    return []
