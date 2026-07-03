@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
 
 from astro_bot.config import DB
+from astro_bot.timezones import resolve_timezone
 from astro_bot.db import (
     db_init,
     read_from_db,
@@ -13,7 +14,7 @@ from astro_bot.db_queries import (
     drop_events_table,
     select_events_between,
     select_events_columns,
-    select_events_on_day,
+    select_events_in_window,
     upsert_event,
 )
 from astro_bot.services.ics_feed import get_feed_events
@@ -46,10 +47,20 @@ def sync_events(db: str = DB) -> None:
         write_many_into_db(db, upsert_event, rows)
 
 
-def get_events_on_day(day: date, db: str = DB) -> list:
-    """Events for one day as (dt_utc, summary, description, url) tuples"""
+def get_events_on_day(day: date, tz: str = "", db: str = DB) -> list:
+    """Events of the day in the given timezone (UTC by default)
+    as (dt_utc, summary, description, url) tuples"""
 
-    return read_from_db(db, select_events_on_day, (day.isoformat(),))
+    start = datetime.combine(day, time.min, resolve_timezone(tz))
+    end = start + timedelta(days=1)
+    return read_from_db(
+        db,
+        select_events_in_window,
+        (
+            start.astimezone(timezone.utc).isoformat(),
+            end.astimezone(timezone.utc).isoformat(),
+        ),
+    )
 
 
 def get_events_between(start: date, end: date, db: str = DB) -> list:

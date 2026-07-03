@@ -52,6 +52,25 @@ class TestEventQueries:
             "2026-07-05T10:00:00+00:00",
         ]
 
+    def test_day_respects_timezone(self, db_path) -> None:
+        add_event(db_path, "e1", "2026-07-03T23:30:00+00:00")
+
+        moscow = "Europe/Moscow"
+        assert len(events.get_events_on_day(date(2026, 7, 3), db=db_path)) == 1
+        assert events.get_events_on_day(
+            date(2026, 7, 3), tz=moscow, db=db_path
+        ) == []
+        assert len(
+            events.get_events_on_day(date(2026, 7, 4), tz=moscow, db=db_path)
+        ) == 1
+
+    def test_unknown_timezone_falls_back_to_utc(self, db_path) -> None:
+        add_event(db_path, "e1", "2026-07-03T23:30:00+00:00")
+        result = events.get_events_on_day(
+            date(2026, 7, 3), tz="Mars/Olympus", db=db_path
+        )
+        assert len(result) == 1
+
     def test_upsert_replaces_event_with_same_uid(self, db_path) -> None:
         add_event(db_path, "e1", "2026-07-03T10:00:00+00:00", summary="old")
         add_event(db_path, "e1", "2026-07-03T11:00:00+00:00", summary="new")

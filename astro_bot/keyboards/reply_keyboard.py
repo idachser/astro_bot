@@ -19,6 +19,7 @@ def main_keyboard() -> None:
         "Yesterday",
         "Today",
         "Tomorrow",
+        "Image of the day",
     ]
 
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)

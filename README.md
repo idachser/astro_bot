@@ -13,7 +13,11 @@ every Saturday.***
 - `Today` - get events for today;
 - `Yesterday` - get events for yesterday;
 - `Tomorrow` - get events for tomorrow;
+- `Image of the day` - get astronomy picture of the day from NASA;
 - send a date like `July 15` - get events for a specific date.
+
+Share your location on `/start` and event times will be shown
+in your local timezone (UTC otherwise).
 
 ## Development
 ```bash

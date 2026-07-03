@@ -12,6 +12,7 @@ from astro_bot.handlers import (
     today,
     yesterday,
     tomorrow,
+    image_of_the_day,
     specific_date,
     autosend_events,
 )
@@ -39,6 +40,7 @@ async def main() -> None:
     today.register_handler_today(dp)
     yesterday.register_handler_yesterday(dp)
     tomorrow.register_handler_tomorrow(dp)
+    image_of_the_day.register_handler_image(dp)
     specific_date.register_handler_specific_day(dp)
 
     loop = asyncio.get_event_loop()

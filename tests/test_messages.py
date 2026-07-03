@@ -34,6 +34,34 @@ class TestDayMessage:
         assert "(10:02 UTC)" in msg
         assert "(00:00 UTC)" not in msg
 
+    def test_time_in_user_timezone(self) -> None:
+        msg = templates.MESSAGE_WITH_DAY_EVENTS(
+            date(2026, 7, 3), [EVENT_ROW], tz="Europe/Moscow"
+        )
+        assert "(13:02 MSK)" in msg
+
+
+class TestImageMessage:
+    APOD = {
+        "url": "https://apod.nasa.gov/apod/image/x.jpg",
+        "title": "Andromeda & Friends",
+        "explanation": "A galaxy.",
+        "copyright": "\nSome Astronomer\n",
+    }
+
+    def test_full_response(self) -> None:
+        img, msg = templates.MESSAGE_WITH_IMAGE(self.APOD)
+        assert img == self.APOD["url"]
+        assert "Andromeda &amp; Friends" in msg
+        assert "A galaxy." in msg
+        assert "Copyright: Some Astronomer" in msg
+
+    def test_copyright_is_optional(self) -> None:
+        apod = {key: value for key, value in self.APOD.items()
+                if key != "copyright"}
+        img, msg = templates.MESSAGE_WITH_IMAGE(apod)
+        assert "Copyright" not in msg
+
 
 class TestWeekDigest:
     def test_one_line_per_event(self) -> None:
