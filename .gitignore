@@ -5,6 +5,5 @@ services/__pycache__/
 venv/
 .venv/
 astro_bot_v1/
-user_agents.txt
 astrobot.log
 astrobase.db

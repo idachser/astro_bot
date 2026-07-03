@@ -15,9 +15,6 @@ NASA_TOKEN = os.getenv("NASA_IMAGE_OF_THE_DAY_TOKEN", "")
 # DBs
 DB = os.path.join(BASE_PATH, os.getenv("DB", ""))
 
-# User agents file
-AGENTS = "user_agents.txt"
-
 # Formats
 LOGGING_FORMAT = "%(asctime)s | (line: %(lineno)s) %(levelname)s: %(message)s"
 
@@ -26,7 +23,6 @@ LOGGING_FILE = "astrobot.log"
 LOGGING_MODE = "w"
 
 # URLs
-PAGE_URL = "https://astronomy.com/tags/sky-this-week"
 ICS_FEED_URL = (
     "https://in-the-sky.org/newscalyear_ical.php?year={year}&maxdiff=7"
 )

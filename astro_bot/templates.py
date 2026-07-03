@@ -33,8 +33,6 @@ START_MESSAGE = f"""You can send me commands (press keys):
 
 HELP_MESSAGE = COMMANDS_LIST
 
-SCRAPING_ERROR_MESSAGE = "No content found."
-ERROR_MESSAGE = "Something went wrong. Please, try later."
 NOTHING_NEWS_FOUND = "No events found..."
 WRONG_DATE_MESSAGE = (
     "I can't understand the date. "

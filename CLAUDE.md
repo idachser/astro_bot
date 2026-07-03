@@ -4,36 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Telegram bot (aiogram 2.x, long polling) that collects upcoming celestial events and sends them to users on demand and as a weekly Saturday broadcast. Storage is SQLite. **PLAN.md describes an in-progress migration** of the data source from scraping astronomy.com HTML to the in-the-sky.org iCal feed — read it before touching `services/` or the DB schema.
+Telegram bot (aiogram 2.x, long polling) that serves upcoming celestial events from the In-The-Sky.org iCal feed, on demand and as a weekly Saturday broadcast. Storage is SQLite. PLAN.md documents the completed migration off HTML scraping and the remaining backlog (stage 6: user timezones, NASA APOD image of the day, location-based visibility filtering).
 
 ## Commands
 
 ```bash
 uv sync                            # deps (creates .venv)
 uv run python -m astro_bot         # run the bot
-uv run pytest astro_bot/tests.py   # tests
-uv run flake8 astro_bot            # lint
+uv run pytest                      # tests (offline, use fixtures)
+uv run flake8 astro_bot tests      # lint
 ```
 
 Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9, which does not build on 3.12+. Upgrading to aiogram 3 would lift this.
 
 Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (reserved, unused). Logs go to `astrobot.log` (overwritten each start).
 
-Caveats: `astro_bot/tests.py` still uses pre-rename flat imports (`import config`) and hits the live website, so the suite is currently broken; scraper needs `user_agents.txt` (gitignored, one User-Agent per line).
-
 ## Architecture
 
 Three layers, one direction of imports: `handlers/` → `services/` → `db.py`.
 
-- **`__main__.py`** builds Bot/Dispatcher, calls each handler module's `register_handler_*(dp)`, and starts `autosend_events.scheduler(bot)` as a background task before polling.
-- **Handlers match button text, not slash commands.** The reply keyboard in `keyboards/reply_keyboard.py` shows buttons ("Week", "Today", …) and each handler filters on `Text(equals=...)`. The only real slash command is `/start`. `specific_date.py` registers a catch-all message handler, so it must be registered last. All user-facing strings live in `templates.py` (HTML parse mode).
-- **Data pipeline (current, being replaced):** `services/scrap_data.py` (requests+bs4, random User-Agent) → `parse_data.py` (regex split by date headings) → `extractor.py` → `events.py` writes to SQLite.
-- **Dates are display strings.** Events are keyed by strings like `"Friday, July 3"` — no year, no leading zeros. Handlers reproduce this format via `DATE_FORMAT` + `re.sub` zero-stripping to look events up. The events table has `UNIQUE` on date, so re-scraping dedupes by failing inserts (error is logged and swallowed). The PLAN.md migration replaces this with ISO dates.
-- **`db.py`** opens a new connection per operation and swallows exceptions into the log; `db_queries.py` holds raw SQL (some via f-strings — replace with parameterized queries when touching them).
-- **Week pagination state** (`handlers/week.py`) is an in-memory per-user dict of day counters driven by `week_next`/`week_previous` callbacks — lost on restart.
-
-## Known bugs (fix as part of PLAN.md, don't replicate)
-
-- `services/users.py::get_users_ids` returns only the first row, so the Saturday broadcast reaches one user.
-- The week paginator counter can go negative ("next" past day 0).
-- README/help advertise "New" and "Image of the day" commands that have no handlers.
+- **`__main__.py`** builds Bot/Dispatcher, runs `init_storage()` + `sync_events()`, calls each handler module's `register_handler_*(dp)`, and starts `autosend_events.scheduler(bot)` as a background task before polling.
+- **Handlers match button text, not slash commands.** The reply keyboard in `keyboards/reply_keyboard.py` shows buttons ("Week", "Today", …) and each handler filters on `Text(equals=...)`. The only real slash command is `/start`. `specific_date.py` registers a catch-all message handler (free-text "July 15" lookups), so it must be registered last.
+- **Data flow:** `services/ics_feed.py` downloads the In-The-Sky.org yearly iCal feed (plus next year's in December) and normalizes VEVENTs; `services/events.py` upserts them into the `events` table keyed by feed `uid`, with times as ISO-8601 UTC strings (`dt_utc`). Sync happens at startup and every Saturday; day queries go through `date(dt_utc)` in SQL. `init_storage()` drops a legacy events table (pre-migration string-date schema) if it finds one.
+- **Week pagination is stateless:** the `<`/`>` inline buttons carry the target day as `week_YYYY-MM-DD` in callback_data, wrapping Mon↔Sun within the shown day's week.
+- **All user-facing text lives in `templates.py`** (HTML parse mode; escape feed text with `quote_html`). The In-The-Sky.org attribution in the greeting and digest footer is a license requirement (data is © Dominic Ford, non-commercial use with attribution) — keep it when editing texts.
+- **The Saturday broadcast** (`handlers/autosend_events.py`) wraps each send in try/except so users who blocked the bot don't kill the scheduler loop.
+- Tests in `tests/` run offline: the ICS parser is tested against `tests/fixtures/newscal_2026.ics`, DB code against temp files (service functions accept a `db=` path override).
