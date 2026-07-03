@@ -16,6 +16,8 @@ uv run flake8 astro_bot tests      # lint
 docker compose up -d --build       # deploy (db and log persist in ./data/)
 ```
 
+CI/CD: `.github/workflows/ci-cd.yml` runs flake8 + pytest on every push/PR; pushes to `main` then deploy to the server over SSH (git pull + compose rebuild), gated on green tests.
+
 Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9, which does not build on 3.12+. Upgrading to aiogram 3 would lift this.
 
 Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (for "Image of the day"; NASA's `DEMO_KEY` works for light use). Logs go to `astrobot.log` (overwritten each start).

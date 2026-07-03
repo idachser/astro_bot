@@ -38,6 +38,11 @@ docker compose up -d --build
 ```
 The SQLite database and log persist in `./data/` on the host.
 
+Pushes to `main` are deployed automatically by GitHub Actions
+(lint + tests, then `git pull` and `docker compose up -d --build`
+on the server over SSH). Required repository secrets:
+`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH`.
+
 Using: Aiogram, icalendar and SQLite.
 
 Event data courtesy of [In-The-Sky.org](https://in-the-sky.org/),
