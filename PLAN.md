@@ -16,12 +16,14 @@ https://in-the-sky.org/newscalyear_ical.php?year=<YYYY>&maxdiff=7
 
 ## Этап 1. Новый источник данных
 
-- [ ] Добавить зависимость `icalendar` (и убрать `bs4`) в `pyproject.toml`.
-- [ ] Написать `services/ics_feed.py`: скачивание ICS за текущий год
+- [x] Добавить зависимость `icalendar` в `pyproject.toml`.
+- [x] Написать `services/ics_feed.py`: скачивание ICS за текущий год
       (в декабре — ещё и за следующий), парсинг VEVENT в список словарей
       `{uid, dt_utc, summary, description, url}`.
-- [ ] Вынести URL фида в `config.py` (`ICS_FEED_URL`), удалить `PAGE_URL`
-      и `AGENTS` / `user_agents.txt` (случайные user-agent больше не нужны).
+- [x] Вынести URL фида в `config.py` (`ICS_FEED_URL`).
+- Удаление `bs4`, `PAGE_URL` и `AGENTS` / `user_agents.txt` перенесено
+  в этап 5: старый пайплайн остаётся рабочим, пока хендлеры не переведены
+  на новую схему (этапы 2–3).
 
 ## Этап 2. Схема БД
 
@@ -66,6 +68,8 @@ https://in-the-sky.org/newscalyear_ical.php?year=<YYYY>&maxdiff=7
       тесты выборок по диапазону дат на `:memory:`-базе.
 - [ ] Удалить `services/scrap_data.py`, `parse_data.py`, `extractor.py`
       и связанные тесты скрейпера.
+- [ ] Убрать `bs4` из зависимостей, `PAGE_URL` и `AGENTS` из `config.py`,
+      удалить `user_agents.txt` (случайные user-agent больше не нужны).
 
 ## Этап 6 (потом, отдельно)
 

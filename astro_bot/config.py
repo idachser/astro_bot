@@ -28,6 +28,9 @@ LOGGING_MODE = "w"
 
 # URLs
 PAGE_URL = "https://astronomy.com/tags/sky-this-week"
+ICS_FEED_URL = (
+    "https://in-the-sky.org/newscalyear_ical.php?year={year}&maxdiff=7"
+)
 IMAGE_OF_THE_DAY_URL = f"https://api.nasa.gov/planetary/apod?api_key={NASA_TOKEN}"
 
 # Scheduler

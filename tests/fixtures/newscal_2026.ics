@@ -1,0 +1,36 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//in-the-sky.org//NONSGML v1.0//EN
+BEGIN:VEVENT
+UID:20260101_08_100@in-the-sky.org
+DTSTAMP:20260101T214419Z
+DTSTART:20260101T214419Z
+SUMMARY:The Moon at perigee
+DESCRIPTION:The Moon makes its monthly closest approach to the Earth, appearing larger than at other times of the month &ndash; though only very fractionally. https://in-the-sky.org/news.php?id=20260101_08_100
+URL:https://in-the-sky.org/news.php?id=20260101_08_100
+END:VEVENT
+BEGIN:VEVENT
+UID:20260102_16_100@in-the-sky.org
+DTSTAMP:20260102T015159Z
+DTSTART:20260102T015159Z
+SUMMARY:Lunar occultation of Beta Tauri
+DESCRIPTION:The Moon will pass in front of Beta Tauri (Elnath), creating a lunar occultation visible from countries and territories including Brazil, Peru, Colombia and Bolivia amongst others. https://in-the-sky.org/news.php?id=20260102_16_100
+URL:https://in-the-sky.org/news.php?id=20260102_16_100
+END:VEVENT
+BEGIN:VEVENT
+UID:20260103_08_100@in-the-sky.org
+DTSTAMP:20260103T100246Z
+DTSTART:20260103T100246Z
+SUMMARY:Full Moon
+DESCRIPTION:The Moon reaches full phase and is visible for much of the night. https://in-the-sky.org/news.php?id=20260103_08_100
+URL:https://in-the-sky.org/news.php?id=20260103_08_100
+END:VEVENT
+BEGIN:VEVENT
+UID:20260728_10_100@in-the-sky.org
+DTSTAMP:20260715T000000Z
+DTSTART;VALUE=DATE:20260728
+SUMMARY:Piscis Austrinid meteor shower 2026
+DESCRIPTION:The Piscis Austrinid meteor shower reaches its peak. https://in-the-sky.org/news.php?id=20260728_10_100
+URL:https://in-the-sky.org/news.php?id=20260728_10_100
+END:VEVENT
+END:VCALENDAR
