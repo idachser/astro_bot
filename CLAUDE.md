@@ -9,15 +9,17 @@ Telegram bot (aiogram 2.x, long polling) that collects upcoming celestial events
 ## Commands
 
 ```bash
-poetry install                        # deps (Python >=3.10)
-poetry run python -m astro_bot        # run the bot
-poetry run pytest astro_bot/tests.py  # tests
-poetry run flake8 astro_bot           # lint
+uv sync                            # deps (creates .venv)
+uv run python -m astro_bot         # run the bot
+uv run pytest astro_bot/tests.py   # tests
+uv run flake8 astro_bot            # lint
 ```
+
+Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9, which does not build on 3.12+. Upgrading to aiogram 3 would lift this.
 
 Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (reserved, unused). Logs go to `astrobot.log` (overwritten each start).
 
-Caveats: `astro_bot/tests.py` still uses pre-rename flat imports (`import config`) and hits the live website, so the suite is currently broken; scraper needs `user_agents.txt` (gitignored, one User-Agent per line); `handlers/start.py` imports `timezonefinder`, which is missing from `pyproject.toml`.
+Caveats: `astro_bot/tests.py` still uses pre-rename flat imports (`import config`) and hits the live website, so the suite is currently broken; scraper needs `user_agents.txt` (gitignored, one User-Agent per line).
 
 ## Architecture
 
