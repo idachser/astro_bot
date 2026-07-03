@@ -26,6 +26,18 @@ uv run python -m astro_bot    # run the bot
 uv run pytest                 # run tests
 ```
 
+## Deployment
+Put a `.env` file next to `docker-compose.yml`:
+```
+TELEGRAM_BOT_TOKEN=<your bot token>
+NASA_IMAGE_OF_THE_DAY_TOKEN=<api.nasa.gov key or DEMO_KEY>
+```
+and run:
+```bash
+docker compose up -d --build
+```
+The SQLite database and log persist in `./data/` on the host.
+
 Using: Aiogram, icalendar and SQLite.
 
 Event data courtesy of [In-The-Sky.org](https://in-the-sky.org/),

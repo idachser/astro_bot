@@ -7,3 +7,4 @@ venv/
 astro_bot_v1/
 astrobot.log
 astrobase.db
+data/

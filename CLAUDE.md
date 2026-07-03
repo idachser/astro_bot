@@ -13,6 +13,7 @@ uv sync                            # deps (creates .venv)
 uv run python -m astro_bot         # run the bot
 uv run pytest                      # tests (offline, use fixtures)
 uv run flake8 astro_bot tests      # lint
+docker compose up -d --build       # deploy (db and log persist in ./data/)
 ```
 
 Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9, which does not build on 3.12+. Upgrading to aiogram 3 would lift this.

@@ -19,7 +19,7 @@ DB = os.path.join(BASE_PATH, os.getenv("DB", ""))
 LOGGING_FORMAT = "%(asctime)s | (line: %(lineno)s) %(levelname)s: %(message)s"
 
 # Logging configuration
-LOGGING_FILE = "astrobot.log"
+LOGGING_FILE = os.getenv("LOGGING_FILE", "astrobot.log")
 LOGGING_MODE = "w"
 
 # URLs

@@ -1,0 +1,12 @@
+.git
+.venv
+.vim
+.env
+data/
+tests/
+__pycache__/
+*.db
+*.log
+*.jpg
+PLAN.md
+CLAUDE.md

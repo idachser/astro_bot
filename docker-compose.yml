@@ -1,0 +1,11 @@
+services:
+  astro-bot:
+    build: .
+    container_name: astro-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB: data/astrobase.db
+      LOGGING_FILE: data/astrobot.log
+    volumes:
+      - ./data:/app/data
