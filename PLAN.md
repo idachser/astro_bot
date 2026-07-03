@@ -27,17 +27,19 @@ https://in-the-sky.org/newscalyear_ical.php?year=<YYYY>&maxdiff=7
 
 ## Этап 2. Схема БД
 
-- [ ] Новая таблица `events`:
+- [x] Новая таблица `events`:
       `uid TEXT PRIMARY KEY, dt_utc TEXT NOT NULL, summary TEXT NOT NULL,
       description TEXT, url TEXT` — вместо строковой даты «Friday, July 3»
       хранить ISO-дату/время.
-- [ ] Переписать `db_queries.py` на параметризованные запросы
+- [x] Переписать `db_queries.py` на параметризованные запросы
       (убрать f-string SQL), добавить выборку по диапазону дат:
       `WHERE date(dt_utc) BETWEEN ? AND ?`.
-- [ ] `services/events.py`: `sync_events()` (upsert по uid) и
-      `get_events(day)` / `get_events(range)` по ISO-датам.
-- [ ] Миграция: старые данные не переносить — таблица пересоздаётся,
-      фид полностью покрывает текущий год.
+- [x] `services/events.py`: `sync_events()` (upsert по uid),
+      `get_events_on_day()` / `get_events_between()` по ISO-датам.
+      Старые `write_events()` / `get_events()` оставлены как заглушки
+      до перевода хендлеров (этап 3).
+- [x] Миграция: `init_storage()` при старте создаёт таблицы и дропает
+      старую таблицу events (без колонки uid); вызывается из `__main__`.
 
 ## Этап 3. Хендлеры
 

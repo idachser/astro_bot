@@ -6,29 +6,34 @@ create_users_table = """CREATE TABLE IF NOT EXISTS users (
     )"""
 
 create_events_table = """CREATE TABLE IF NOT EXISTS events (
-    row_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL UNIQUE,
-    description TEXT NOT NULL
+    uid TEXT PRIMARY KEY,
+    dt_utc TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    description TEXT,
+    url TEXT
     )"""
 
 create_user_ins = """INSERT INTO
     users (telegram_id, user_name, name, timezone)
     VALUES (?, ?, ?, ?)"""
 
-create_event_ins = """INSERT INTO
-    events (date, description)
-    VALUES (?, ?)"""
+upsert_event = """INSERT INTO
+    events (uid, dt_utc, summary, description, url)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(uid) DO UPDATE SET
+        dt_utc=excluded.dt_utc,
+        summary=excluded.summary,
+        description=excluded.description,
+        url=excluded.url"""
 
 select_users_id = "SELECT telegram_id FROM users"
 
-select_events = "SELECT date, description FROM events"
+select_events_on_day = """SELECT dt_utc, summary, description, url
+    FROM events WHERE date(dt_utc) = ? ORDER BY dt_utc"""
 
-select_events_ids = "SELECT date_id FROM events"
+select_events_between = """SELECT dt_utc, summary, description, url
+    FROM events WHERE date(dt_utc) BETWEEN ? AND ? ORDER BY dt_utc"""
 
+select_events_columns = "PRAGMA table_info(events)"
 
-def select_last_new_events(count: int):
-    return f"SELECT date, description FROM events ORDER BY row_id DESC LIMIT {count}"
-
-
-def select_certain_event(date: str) -> str:
-    return f"SELECT date, description FROM events WHERE date='{date}'"
+drop_events_table = "DROP TABLE events"
