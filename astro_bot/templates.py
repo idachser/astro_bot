@@ -13,35 +13,25 @@ for getting default date and time.
 
 Let's start your astro adventure!
 
-P.S. Special thanks Astronomy Magazine for provided data. Visit \
-https://astronomy.com/ if you want more.
+P.S. Event data courtesy of In-The-Sky.org, © Dominic Ford. Visit \
+https://in-the-sky.org/ if you want more.
+"""
+
+COMMANDS_LIST = f"""{hbold("Help")} - get message with commands list;
+{hbold("Week")} - browse events of the week day by day;
+{hbold("Today")} - get events for today;
+{hbold("Yesterday")} - get events for yesterday;
+{hbold("Tomorrow")} - get events for tomorrow.
+
+You can send me date in {hbold("Month DD")} (e.g. 'July 15') format for \
+getting celestial events for specific date.
 """
 
 START_MESSAGE = f"""You can send me commands (press keys):
 
-{hbold("Help")} - get message with commands list;
-{hbold("New")} - check new celestial events;
-{hbold("Week")} - get weekly digest;
-{hbold("Today")} - get event for today;
-{hbold("Yesterday")} - get event for yesterday;
-{hbold("Tomorrow")} - get event for tomorrow;
-{hbold("Image of the day")} - for get image of the day from NASA.
+{COMMANDS_LIST}"""
 
-You can send me date in {hbold("Month DD")} (e.g. 'July 15') format for \
-getting celestial event for specific date.
-"""
-
-HELP_MESSAGE = f"""{hbold("Help")} - get message with commands list;
-{hbold("New")} - check new celestial events;
-{hbold("Week")} - get weekly digest;
-{hbold("Today")} - get event for today;
-{hbold("Yesterday")} - get event for yesterday;
-{hbold("Tomorrow")} - get event for tomorrow;
-{hbold("Image of the day")} - for get image of the day from NASA.
-
-You can send me date in {hbold("Month DD")} (e.g. 'July 15') format for \
-getting celestial event for specific date.
-"""
+HELP_MESSAGE = COMMANDS_LIST
 
 SCRAPING_ERROR_MESSAGE = "No content found."
 ERROR_MESSAGE = "Something went wrong. Please, try later."
@@ -84,6 +74,7 @@ def WEEK_DIGEST_MESSAGE(events: list) -> str:
         dt = datetime.fromisoformat(dt_utc)
         lines.append(f"{dt:%a} {dt.day} {dt:%B} — {quote_html(summary)}")
 
+    lines += ["", "Data courtesy of In-The-Sky.org, © Dominic Ford"]
     return "\n".join(lines)
 
 

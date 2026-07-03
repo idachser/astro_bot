@@ -3,17 +3,26 @@
 <img src="astro_bot_logo.jpg" width="200" height="200" >
 
 ### Telegram-bot for recieving masseges about upcoming celestial events.
-***Astrobot extracting data about celestial and astronomical events from
-internet and pushing it to user every week.***
+***Astrobot takes data about celestial and astronomical events from
+the In-The-Sky.org iCal feed and pushes a weekly digest to users
+every Saturday.***
 
 ## Bot commands:
 - `Help` - get message with commands list;
-- `New` - check new celestial events;
-- `Week` - get weekly digest;
-- `Today` - get event for today;
-- `Yesterday` - get event for yesterday;
-- `Tomorrow` - get event for tomorrow;
-- `Image of the day` - for get image of the day from NASA.
+- `Week` - browse events of the week day by day;
+- `Today` - get events for today;
+- `Yesterday` - get events for yesterday;
+- `Tomorrow` - get events for tomorrow;
+- send a date like `July 15` - get events for a specific date.
 
+## Development
+```bash
+uv sync                       # install dependencies
+uv run python -m astro_bot    # run the bot
+uv run pytest                 # run tests
+```
 
-Using: Beautiful Soup, Aiogram and SQLite
+Using: Aiogram, icalendar and SQLite.
+
+Event data courtesy of [In-The-Sky.org](https://in-the-sky.org/),
+© Dominic Ford.
