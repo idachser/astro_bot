@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Telegram bot (aiogram 2.x, long polling) that serves upcoming celestial events from the In-The-Sky.org iCal feed, on demand and as a weekly Saturday broadcast. Storage is SQLite. PLAN.md documents the completed migration off HTML scraping; the only deferred item is location-based event visibility filtering.
+Telegram bot (aiogram 2.x, long polling) that serves upcoming celestial events from the In-The-Sky.org iCal feed, on demand and as a weekly Saturday broadcast. Storage is SQLite. PLAN.md documents the completed migration off HTML scraping; its stage 7 plans the switch to `skyevents` — a standalone celestial-events HTTP API (separate repository, deployed on its own) the bot will reach via `EVENTS_API_URL` only — and stage 8 plans per-user weather footers (cloud cover/visibility via Open-Meteo) on event messages.
 
 ## Commands
 
