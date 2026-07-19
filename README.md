@@ -17,7 +17,9 @@ every Saturday.***
 - send a date like `July 15` - get events for a specific date.
 
 Share your location on `/start` and event times will be shown
-in your local timezone (UTC otherwise).
+in your local timezone (UTC otherwise), with observing conditions
+— cloud cover and visibility at the event's hour — under the
+day's upcoming events.
 
 ## Development
 ```bash
@@ -47,3 +49,5 @@ Using: Aiogram, icalendar and SQLite.
 
 Event data courtesy of [In-The-Sky.org](https://in-the-sky.org/),
 © Dominic Ford.
+
+Weather data by [Open-Meteo.com](https://open-meteo.com/).

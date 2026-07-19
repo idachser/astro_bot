@@ -9,9 +9,10 @@ GREETING_MESSAGE = f"""Hello, I'm Astrobot!
 
 I will searching and collect celestial events for you.
 
-If you want getting actual time of events for your local, please \
-push {hbold("Share location")} key or {hbold("Default time")} key \
-for getting default date and time.
+Push {hbold("Share location")} key to get event times in your \
+local timezone and observing conditions — cloud cover and \
+visibility — under the events, or {hbold("Default time")} key \
+for UTC times without the weather forecast.
 
 Let's start your astro adventure!
 
@@ -28,6 +29,10 @@ COMMANDS_LIST = f"""{hbold("Help")} - get message with commands list;
 
 You can send me date in {hbold("Month DD")} (e.g. 'July 15') format for \
 getting celestial events for specific date.
+
+Share your location with the {hbold("Share location")} key at /start \
+and event times will be in your timezone, with observing conditions \
+(cloud cover and visibility) under upcoming events.
 """
 
 START_MESSAGE = f"""You can send me commands (press keys):
