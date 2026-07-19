@@ -41,6 +41,17 @@ class TestDayMessage:
         assert "(13:02 MSK)" in msg
 
 
+class TestWeatherFooter:
+    def test_one_line_per_event_with_attribution(self) -> None:
+        msg = templates.WEATHER_FOOTER(
+            [("21:04", 84, 21), ("22:15", 88, 22)]
+        )
+        assert "Observing conditions:" in msg
+        assert "21:04 — clouds 84%, visibility 21 km" in msg
+        assert "22:15 — clouds 88%, visibility 22 km" in msg
+        assert msg.endswith("Weather data by Open-Meteo.com")
+
+
 class TestImageMessage:
     APOD = {
         "url": "https://apod.nasa.gov/apod/image/x.jpg",

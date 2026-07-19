@@ -13,12 +13,17 @@ async def start(message: types.Message) -> None:
         "name": message.from_user.full_name,
         "username": message.from_user.username,
         "timezone": "",
+        "lat": None,
+        "lon": None,
     }
 
     if message.text != "Default time":
+        location = message.location
+        user_data["lat"] = location.latitude
+        user_data["lon"] = location.longitude
         tf = TimezoneFinder()
         user_data["timezone"] = tf.timezone_at(
-            lng=message.location.longitude, lat=message.location.latitude
+            lng=location.longitude, lat=location.latitude
         )
 
     add_user(user_data)

@@ -69,6 +69,19 @@ def MESSAGE_WITH_DAY_EVENTS(day: date, events: list, tz: str = "") -> str:
     return "\n".join(lines).strip()
 
 
+def WEATHER_FOOTER(weather: list) -> str:
+    """Observing conditions per event:
+    (local HH:MM, cloud cover %, visibility km) rows"""
+
+    lines = [hbold("Observing conditions:")]
+    for time_, cloud, visibility_km in weather:
+        lines.append(
+            f"{time_} — clouds {cloud}%, visibility {visibility_km} km"
+        )
+    lines += ["", "Weather data by Open-Meteo.com"]
+    return "\n".join(lines)
+
+
 def WEEK_DIGEST_MESSAGE(events: list) -> str:
     """One-line-per-event digest for the upcoming week"""
 

@@ -1,7 +1,7 @@
 from astro_bot.config import DB
 from astro_bot.db import read_from_db, write_into_db
 from astro_bot.db_queries import (
-    select_user_timezone,
+    select_user_profile,
     select_users_id,
     upsert_user,
 )
@@ -13,6 +13,8 @@ def add_user(user: dict, db: str = DB) -> None:
         user["username"] or "",
         user["name"],
         user["timezone"] or "",
+        user.get("lat"),
+        user.get("lon"),
     )
     write_into_db(db, upsert_user, data)
 
@@ -21,6 +23,9 @@ def get_users_ids(db: str = DB) -> list:
     return [row[0] for row in read_from_db(db, select_users_id)]
 
 
-def get_user_timezone(telegram_id: int, db: str = DB) -> str:
-    rows = read_from_db(db, select_user_timezone, (telegram_id,))
-    return rows[0][0] if rows else ""
+def get_user_profile(telegram_id: int, db: str = DB) -> tuple:
+    """(timezone, lat, lon) of the user; ("", None, None) if unknown
+    or the user chose "Default time" (no location shared)"""
+
+    rows = read_from_db(db, select_user_profile, (telegram_id,))
+    return rows[0] if rows else ("", None, None)

@@ -29,6 +29,7 @@ ICS_FEED_URL = (
 IMAGE_OF_THE_DAY_URL = (
     f"https://api.nasa.gov/planetary/apod?api_key={NASA_TOKEN}"
 )
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
 # Scheduler
 SATURDAY = 5

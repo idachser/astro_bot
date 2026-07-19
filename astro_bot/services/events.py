@@ -9,25 +9,36 @@ from astro_bot.db import (
     write_many_into_db,
 )
 from astro_bot.db_queries import (
+    add_users_lat_column,
+    add_users_lon_column,
     create_events_table,
     create_users_table,
     drop_events_table,
     select_events_between,
     select_events_columns,
     select_events_in_window,
+    select_users_columns,
     upsert_event,
 )
 from astro_bot.services.ics_feed import get_feed_events
 
 
 def init_storage(db: str = DB) -> None:
-    """Create tables, dropping the legacy events table (string dates)"""
+    """Create tables and migrate old schemas: drop the legacy events
+    table (string dates), add user location columns"""
 
     columns = [col[1] for col in read_from_db(db, select_events_columns)]
     if columns and "uid" not in columns:
         write_into_db(db, drop_events_table)
     db_init(db, create_events_table)
     db_init(db, create_users_table)
+
+    user_columns = [
+        col[1] for col in read_from_db(db, select_users_columns)
+    ]
+    if "lat" not in user_columns:
+        write_into_db(db, add_users_lat_column)
+        write_into_db(db, add_users_lon_column)
 
 
 def sync_events(db: str = DB) -> None:
