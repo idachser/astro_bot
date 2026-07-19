@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from aiogram.utils.markdown import hbold, hlink, quote_html
 
-from astro_bot.timezones import resolve_timezone
+from astro_bot.timezones import is_date_only, resolve_timezone
 
 
 GREETING_MESSAGE = f"""Hello, I'm Astrobot!
@@ -55,7 +55,7 @@ def format_day_title(day: date) -> str:
 
 def format_event_time(dt_utc: str, tz: str = "") -> str:
     dt = datetime.fromisoformat(dt_utc)
-    if (dt.hour, dt.minute) == (0, 0):
+    if is_date_only(dt):
         return ""
     local = dt.astimezone(resolve_timezone(tz))
     return f" ({local:%H:%M} {local:%Z})"

@@ -1,8 +1,10 @@
+import asyncio
 from datetime import date, datetime
 
 from aiogram import Dispatcher, types
 
 from astro_bot.handlers.get_specific_date_event import get_message_for_day
+from astro_bot.services.users import get_user_today
 from astro_bot.templates import WRONG_DATE_MESSAGE
 
 
@@ -13,8 +15,10 @@ async def get_day(message: types.Message) -> None:
         await message.reply(WRONG_DATE_MESSAGE)
         return
 
-    day = date(date.today().year, parsed.month, parsed.day)
-    msg = get_message_for_day(day, message.from_user.id)
+    user_id = message.from_user.id
+    year = get_user_today(user_id).year
+    day = date(year, parsed.month, parsed.day)
+    msg = await asyncio.to_thread(get_message_for_day, day, user_id)
 
     await message.reply(msg, disable_web_page_preview=True)
 

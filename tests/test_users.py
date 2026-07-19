@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from astro_bot import db
@@ -70,6 +73,17 @@ class TestUsers:
 
     def test_unknown_user_has_empty_profile(self, db_path) -> None:
         assert users.get_user_profile(99, db=db_path) == ("", None, None)
+
+    def test_user_today_is_the_local_date(self, db_path) -> None:
+        users.add_user(
+            make_user(timezone="Pacific/Kiritimati"), db=db_path
+        )
+        expected = datetime.now(ZoneInfo("Pacific/Kiritimati")).date()
+        assert users.get_user_today(42, db=db_path) == expected
+
+    def test_unknown_user_today_is_utc(self, db_path) -> None:
+        expected = datetime.now(timezone.utc).date()
+        assert users.get_user_today(99, db=db_path) == expected
 
 
 class TestLocationMigration:

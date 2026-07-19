@@ -95,6 +95,55 @@ class TestEventsWeather:
         weather.get_events_weather(events, LAT, LON, now=NOW)
         assert len(api) == 1
 
+    def test_unknown_timezone_falls_back_to_utc(self, api) -> None:
+        """The zone actually used for local times must also be the
+        zone requested from the API, or hour keys won't match"""
+
+        events = [event("2026-07-18T21:04:00+00:00")]
+        rows = weather.get_events_weather(
+            events, LAT, LON, tz="Mars/Olympus", now=NOW
+        )
+        assert rows == [("21:04", 84, 21)]
+        assert api[0]["timezone"] == "UTC"
+
+    def test_expired_cache_entries_are_pruned(
+        self, api, monkeypatch
+    ) -> None:
+        clock = [0.0]
+        monkeypatch.setattr(weather.time, "monotonic", lambda: clock[0])
+
+        events = [event("2026-07-18T21:04:00+00:00")]
+        weather.get_events_weather(events, LAT, LON, now=NOW)
+        clock[0] = weather.CACHE_TTL_SECONDS + 1.0
+        weather.get_events_weather(events, LAT, LON, now=NOW)
+
+        assert len(api) == 2
+        assert len(weather._cache) == 1
+
+    def test_null_hourly_values_are_dropped(self, monkeypatch) -> None:
+        """Open-Meteo returns null when a model lacks a value; such
+        hours must be skipped, not crash the message"""
+
+        payload = {
+            "hourly": {
+                "time": ["2026-07-18T21:00", "2026-07-18T22:00"],
+                "cloud_cover": [84, None],
+                "visibility": [None, 22000.0],
+            }
+        }
+        monkeypatch.setattr(
+            weather.requests,
+            "get",
+            lambda url, params=None, timeout=None: FakeResponse(payload),
+        )
+        weather._cache.clear()
+
+        events = [
+            event("2026-07-18T21:04:00+00:00"),
+            event("2026-07-18T22:15:00+00:00"),
+        ]
+        assert weather.get_events_weather(events, LAT, LON, now=NOW) == []
+
 
 class TestApiFailure:
     def test_request_error_means_no_weather(self, monkeypatch) -> None:

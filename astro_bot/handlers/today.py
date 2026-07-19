@@ -1,13 +1,16 @@
-from datetime import date
+import asyncio
 
 from aiogram import Dispatcher, types
 from aiogram.dispatcher.filters import Text
 
 from astro_bot.handlers.get_specific_date_event import get_message_for_day
+from astro_bot.services.users import get_user_today
 
 
 async def get_today(message: types.Message) -> None:
-    msg = get_message_for_day(date.today(), message.from_user.id)
+    user_id = message.from_user.id
+    day = get_user_today(user_id)
+    msg = await asyncio.to_thread(get_message_for_day, day, user_id)
     await message.reply(msg, disable_web_page_preview=True)
 
 

@@ -40,6 +40,10 @@ class TestDayMessage:
         )
         assert "(13:02 MSK)" in msg
 
+    def test_second_precision_midnight_is_a_real_time(self) -> None:
+        time_ = templates.format_event_time("2026-07-03T00:00:45+00:00")
+        assert time_ == " (00:00 UTC)"
+
 
 class TestWeatherFooter:
     def test_one_line_per_event_with_attribution(self) -> None:

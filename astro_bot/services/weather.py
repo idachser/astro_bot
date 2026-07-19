@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 import requests
 
 from astro_bot.config import WEATHER_URL
-from astro_bot.timezones import resolve_timezone
+from astro_bot.timezones import is_date_only, resolve_timezone
 
 REQUEST_TIMEOUT = 10
 CACHE_TTL_SECONDS = 3600
@@ -19,13 +19,14 @@ def _fetch_day_forecast(
     lat: float, lon: float, day: date, tz: str
 ) -> dict | None:
     """Local "YYYY-MM-DDTHH:00" -> (cloud cover %, visibility m)
-    for one day from Open-Meteo"""
+    for one day from Open-Meteo; hours with incomplete data (the API
+    returns nulls when a model lacks a value) are dropped"""
 
     params = {
         "latitude": lat,
         "longitude": lon,
         "hourly": "cloud_cover,visibility",
-        "timezone": tz or "UTC",
+        "timezone": tz,
         "start_date": day.isoformat(),
         "end_date": day.isoformat(),
     }
@@ -35,21 +36,40 @@ def _fetch_day_forecast(
         )
         response.raise_for_status()
         hourly = response.json()["hourly"]
-        return dict(
-            zip(
+        return {
+            hour: (cloud, visibility)
+            for hour, cloud, visibility in zip(
                 hourly["time"],
-                zip(hourly["cloud_cover"], hourly["visibility"]),
+                hourly["cloud_cover"],
+                hourly["visibility"],
             )
-        )
-    except (requests.RequestException, ValueError, KeyError) as err:
+            if cloud is not None and visibility is not None
+        }
+    except (
+        requests.RequestException,
+        ValueError,
+        KeyError,
+        TypeError,
+    ) as err:
         logging.exception(f"Weather request failed: {err}")
 
 
+def _prune_expired(now: float) -> None:
+    expired = [
+        key
+        for key, (stored_at, _) in _cache.items()
+        if now - stored_at >= CACHE_TTL_SECONDS
+    ]
+    for key in expired:
+        del _cache[key]
+
+
 def get_day_forecast(
-    lat: float, lon: float, day: date, tz: str = ""
+    lat: float, lon: float, day: date, tz: str = "UTC"
 ) -> dict | None:
-    """Cached for an hour so week browsing doesn't hit the API
-    on every click; failures are not cached"""
+    """Cached for an hour so week browsing doesn't hit the API on
+    every click; failures are not cached. Expired entries are pruned
+    on every call to keep the cache bounded."""
 
     key = (
         round(lat, COORD_PRECISION),
@@ -57,13 +77,15 @@ def get_day_forecast(
         day,
         tz,
     )
+    now = time.monotonic()
+    _prune_expired(now)
     cached = _cache.get(key)
-    if cached and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
+    if cached:
         return cached[1]
 
     forecast = _fetch_day_forecast(lat, lon, day, tz)
     if forecast is not None:
-        _cache[key] = (time.monotonic(), forecast)
+        _cache[key] = (now, forecast)
     return forecast
 
 
@@ -82,6 +104,10 @@ def get_events_weather(
         return []
 
     zone = resolve_timezone(tz)
+    # Ask Open-Meteo for the zone we actually resolved to, not the
+    # stored name: on an unknown name resolve_timezone falls back to
+    # UTC, and the forecast keys must be in the same zone as ours
+    zone_name = str(zone)
     now = now or datetime.now(timezone.utc)
     horizon = now.astimezone(zone).date() + timedelta(
         days=FORECAST_HORIZON_DAYS
@@ -90,12 +116,12 @@ def get_events_weather(
     rows = []
     for event in events:
         dt = datetime.fromisoformat(event[0])
-        if (dt.hour, dt.minute) == (0, 0):  # date-only event
+        if is_date_only(dt):
             continue
         local = dt.astimezone(zone)
         if dt < now or local.date() > horizon:
             continue
-        forecast = get_day_forecast(lat, lon, local.date(), tz)
+        forecast = get_day_forecast(lat, lon, local.date(), zone_name)
         if not forecast:
             continue
         hour = forecast.get(local.strftime("%Y-%m-%dT%H:00"))
