@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 
@@ -12,7 +13,11 @@ CACHE_TTL_SECONDS = 3600
 FORECAST_HORIZON_DAYS = 7
 COORD_PRECISION = 2  # ~1 km, plenty for a weather forecast
 
+# Day handlers call into here from asyncio.to_thread, so the cache is
+# shared by worker threads: every read, prune and write goes through
+# the lock or a concurrent insert breaks the prune mid-iteration
 _cache: dict = {}
+_cache_lock = threading.Lock()
 
 
 def _fetch_day_forecast(
@@ -55,6 +60,8 @@ def _fetch_day_forecast(
 
 
 def _prune_expired(now: float) -> None:
+    """Caller must hold _cache_lock"""
+
     expired = [
         key
         for key, (stored_at, _) in _cache.items()
@@ -69,7 +76,9 @@ def get_day_forecast(
 ) -> dict | None:
     """Cached for an hour so week browsing doesn't hit the API on
     every click; failures are not cached. Expired entries are pruned
-    on every call to keep the cache bounded."""
+    on every call to keep the cache bounded. The request itself runs
+    outside the lock: two threads may fetch the same day at once, but
+    holding it across a 10s HTTP call would stall every other user."""
 
     key = (
         round(lat, COORD_PRECISION),
@@ -78,14 +87,16 @@ def get_day_forecast(
         tz,
     )
     now = time.monotonic()
-    _prune_expired(now)
-    cached = _cache.get(key)
+    with _cache_lock:
+        _prune_expired(now)
+        cached = _cache.get(key)
     if cached:
         return cached[1]
 
     forecast = _fetch_day_forecast(lat, lon, day, tz)
     if forecast is not None:
-        _cache[key] = (now, forecast)
+        with _cache_lock:
+            _cache[key] = (now, forecast)
     return forecast
 
 

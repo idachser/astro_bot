@@ -1,5 +1,7 @@
 import json
-from datetime import datetime, timezone
+import threading
+import time
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -143,6 +145,50 @@ class TestEventsWeather:
             event("2026-07-18T22:15:00+00:00"),
         ]
         assert weather.get_events_weather(events, LAT, LON, now=NOW) == []
+
+
+class TestCacheConcurrency:
+    def test_lookups_survive_concurrent_cache_churn(self, api) -> None:
+        """Day handlers reach get_day_forecast from asyncio.to_thread,
+        so its prune must not iterate the cache unguarded while another
+        worker inserts. The churn thread locks; that alone protects
+        nothing if get_day_forecast stops locking too."""
+
+        errors = []
+        rounds = 200
+        done = threading.Event()
+
+        def lookup(worker):
+            try:
+                for i in range(rounds):
+                    weather.get_day_forecast(
+                        LAT + worker, LON, date(2026, 7, 18), f"tz{i}"
+                    )
+            except Exception as err:  # noqa: BLE001
+                errors.append(err)
+
+        def churn():
+            """Keep expired entries around so prune always iterates"""
+
+            while not done.is_set():
+                stale = time.monotonic() - weather.CACHE_TTL_SECONDS - 1
+                with weather._cache_lock:
+                    for i in range(rounds):
+                        weather._cache[("stale", i)] = (stale, {})
+
+        churner = threading.Thread(target=churn, daemon=True)
+        churner.start()
+        threads = [
+            threading.Thread(target=lookup, args=(n,)) for n in range(4)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        done.set()
+        churner.join(timeout=5)
+
+        assert errors == []
 
 
 class TestApiFailure:
