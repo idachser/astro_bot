@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone, tzinfo
+from datetime import date, datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -12,6 +12,13 @@ def resolve_timezone(tz_name: str) -> tzinfo:
         except (ZoneInfoNotFoundError, ValueError):
             logging.warning(f"Unknown timezone: {tz_name}")
     return timezone.utc
+
+
+def today_in(tz_name: str) -> date:
+    """Today's date in the given zone: a user's "today" is their own
+    local day, never the server's"""
+
+    return datetime.now(resolve_timezone(tz_name)).date()
 
 
 def is_date_only(dt: datetime) -> bool:

@@ -1,5 +1,3 @@
-from datetime import date, datetime, timezone
-
 from astro_bot.config import DB
 from astro_bot.db import read_from_db, write_into_db
 from astro_bot.db_queries import (
@@ -7,7 +5,6 @@ from astro_bot.db_queries import (
     select_users_id,
     upsert_user,
 )
-from astro_bot.timezones import resolve_timezone
 
 
 def add_user(user: dict, db: str = DB) -> None:
@@ -32,12 +29,3 @@ def get_user_profile(telegram_id: int, db: str = DB) -> tuple:
 
     rows = read_from_db(db, select_user_profile, (telegram_id,))
     return rows[0] if rows else ("", None, None)
-
-
-def get_user_today(telegram_id: int, db: str = DB) -> date:
-    """Current date in the user's timezone (UTC for unknown users):
-    "today" must be the user's local day, not the server's"""
-
-    tz, _, _ = get_user_profile(telegram_id, db=db)
-    now = datetime.now(timezone.utc)
-    return now.astimezone(resolve_timezone(tz)).date()
