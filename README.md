@@ -29,6 +29,12 @@ uv run pytest                 # run tests
 ```
 
 ## Deployment
+The bot reaches the [skyevents](../skyevents) service over a shared
+external Docker network, so create it once on the host before the first
+deploy (skyevents' own compose joins the same network):
+```bash
+docker network create astronet
+```
 Put a `.env` file next to `docker-compose.yml`:
 ```
 TELEGRAM_BOT_TOKEN=<your bot token>
@@ -38,7 +44,9 @@ and run:
 ```bash
 docker compose up -d --build
 ```
-The SQLite database and log persist in `./data/` on the host.
+The SQLite database and log persist in `./data/` on the host. The bot
+talks to skyevents at `http://skyevents:8000` (`SKYEVENTS_URL`); that
+container is deployed separately from the skyevents repo.
 
 Pushes to `main` are deployed automatically by GitHub Actions
 (lint + tests, then `git pull` and `docker compose up -d --build`
