@@ -20,7 +20,7 @@ from astro_bot.db_queries import (
     select_users_columns,
     upsert_event,
 )
-from astro_bot.services.ics_feed import get_feed_events
+from astro_bot.services.skyevents import fetch_events
 
 
 def init_storage(db: str = DB) -> None:
@@ -42,7 +42,7 @@ def init_storage(db: str = DB) -> None:
 
 
 def sync_events(db: str = DB) -> None:
-    """Fetch the ICS feed and upsert its events into the database"""
+    """Fetch events from the skyevents service and upsert them"""
 
     rows = [
         (
@@ -52,7 +52,7 @@ def sync_events(db: str = DB) -> None:
             event["description"],
             event["url"],
         )
-        for event in get_feed_events()
+        for event in fetch_events()
     ]
     if rows:
         write_many_into_db(db, upsert_event, rows)

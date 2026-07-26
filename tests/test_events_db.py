@@ -91,7 +91,7 @@ class TestSyncEvents:
                 "url": "https://in-the-sky.org/news.php?id=1",
             }
         ]
-        monkeypatch.setattr(events, "get_feed_events", lambda: feed)
+        monkeypatch.setattr(events, "fetch_events", lambda: feed)
 
         events.sync_events(db=db_path)
         result = events.get_events_on_day(date(2026, 7, 3), db=db_path)
@@ -105,7 +105,7 @@ class TestSyncEvents:
         ]
 
     def test_empty_feed_writes_nothing(self, db_path, monkeypatch) -> None:
-        monkeypatch.setattr(events, "get_feed_events", lambda: [])
+        monkeypatch.setattr(events, "fetch_events", lambda: [])
         events.sync_events(db=db_path)
         assert events.get_events_between(
             date(2020, 1, 1), date(2030, 1, 1), db=db_path

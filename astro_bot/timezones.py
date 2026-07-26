@@ -22,9 +22,9 @@ def today_in(tz_name: str) -> date:
 
 
 def is_date_only(dt: datetime) -> bool:
-    """The ICS feed normalizes date-only events to exactly midnight
-    UTC (see ics_feed.parse_calendar); treat that instant as "time
-    unknown". The feed's timed events carry second precision, so a
-    real event landing on 00:00:00 sharp is the rare blind spot."""
+    """skyevents emits date-only events (meteor shower peaks, some
+    comet dates) at exactly midnight UTC; treat that instant as "time
+    unknown". Timed events carry sub-second precision, so a real event
+    landing on 00:00:00 sharp is the rare blind spot."""
 
     return (dt.hour, dt.minute, dt.second) == (0, 0, 0)

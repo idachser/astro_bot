@@ -3,9 +3,9 @@
 <img src="astro_bot_logo.jpg" width="200" height="200" >
 
 ### Telegram-bot for recieving masseges about upcoming celestial events.
-***Astrobot takes data about celestial and astronomical events from
-the In-The-Sky.org iCal feed and pushes a weekly digest to users
-every Saturday.***
+***Astrobot takes celestial and astronomical events from the
+[skyevents](../skyevents) service (computed with Skyfield and JPL DE440s
+ephemerides) and pushes a weekly digest to users every Saturday.***
 
 ## Bot commands:
 - `Help` - get message with commands list;
@@ -53,9 +53,9 @@ Pushes to `main` are deployed automatically by GitHub Actions
 on the server over SSH). Required repository secrets:
 `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH`.
 
-Using: Aiogram, icalendar and SQLite.
+Using: Aiogram and SQLite.
 
-Event data courtesy of [In-The-Sky.org](https://in-the-sky.org/),
-© Dominic Ford.
+Event data computed by the [skyevents](../skyevents) service with
+[Skyfield](https://rhodesmill.org/skyfield/) and JPL DE440s ephemerides.
 
 Weather data by [Open-Meteo.com](https://open-meteo.com/).

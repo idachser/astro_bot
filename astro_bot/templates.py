@@ -16,8 +16,7 @@ for UTC times without the weather forecast.
 
 Let's start your astro adventure!
 
-P.S. Event data courtesy of In-The-Sky.org, © Dominic Ford. Visit \
-https://in-the-sky.org/ if you want more.
+P.S. Event data is computed with Skyfield and JPL DE440s ephemerides.
 """
 
 COMMANDS_LIST = f"""{hbold("Help")} - get message with commands list;
@@ -66,7 +65,8 @@ def MESSAGE_WITH_DAY_EVENTS(day: date, events: list, tz: str = "") -> str:
 
     lines = [hbold(format_day_title(day)), ""]
     for dt_utc, summary, description, url in events:
-        lines.append(hlink(summary, url) + format_event_time(dt_utc, tz))
+        title = hlink(summary, url) if url else hbold(summary)
+        lines.append(title + format_event_time(dt_utc, tz))
         if description:
             lines.append(quote_html(description))
         lines.append("")
@@ -95,7 +95,7 @@ def WEEK_DIGEST_MESSAGE(events: list) -> str:
         dt = datetime.fromisoformat(dt_utc)
         lines.append(f"{dt:%a} {dt.day} {dt:%B} — {quote_html(summary)}")
 
-    lines += ["", "Data courtesy of In-The-Sky.org, © Dominic Ford"]
+    lines += ["", "Computed with Skyfield and JPL DE440s"]
     return "\n".join(lines)
 
 

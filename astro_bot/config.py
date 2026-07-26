@@ -23,9 +23,9 @@ LOGGING_FILE = os.getenv("LOGGING_FILE", "astrobot.log")
 LOGGING_MODE = "w"
 
 # URLs
-ICS_FEED_URL = (
-    "https://in-the-sky.org/newscalyear_ical.php?year={year}&maxdiff=7"
-)
+# skyevents computes the celestial events itself and serves them over
+# HTTP; reached by service name over the shared `astronet` docker bridge.
+SKYEVENTS_URL = os.getenv("SKYEVENTS_URL", "http://skyevents:8000")
 IMAGE_OF_THE_DAY_URL = (
     f"https://api.nasa.gov/planetary/apod?api_key={NASA_TOKEN}"
 )
