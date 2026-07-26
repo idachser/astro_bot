@@ -13,6 +13,7 @@ from astro_bot.db_queries import (
     add_users_lon_column,
     create_events_table,
     create_users_table,
+    delete_legacy_feed_events,
     drop_events_table,
     select_events_between,
     select_events_columns,
@@ -20,7 +21,7 @@ from astro_bot.db_queries import (
     select_users_columns,
     upsert_event,
 )
-from astro_bot.services.skyevents import fetch_events
+from astro_bot.services.skyevents import fetch_year, sync_years
 
 
 def init_storage(db: str = DB) -> None:
@@ -31,6 +32,7 @@ def init_storage(db: str = DB) -> None:
     if columns and "uid" not in columns:
         write_into_db(db, drop_events_table)
     db_init(db, create_events_table)
+    write_into_db(db, delete_legacy_feed_events)
     db_init(db, create_users_table)
 
     user_columns = [
@@ -41,21 +43,62 @@ def init_storage(db: str = DB) -> None:
         write_into_db(db, add_users_lon_column)
 
 
-def sync_events(db: str = DB) -> None:
-    """Fetch events from the skyevents service and upsert them"""
+def _prune_future_events(
+    db: str, year: int, keep_uids: set[str], now_iso: str
+) -> None:
+    """Delete future events in `year` the service no longer returns.
 
-    rows = [
-        (
-            event["uid"],
-            event["dt_utc"].isoformat(),
-            event["summary"],
-            event["description"],
-            event["url"],
+    Scoped two ways so a normal sync can only ever remove genuine
+    phantoms: to `dt_utc >= now` (past events are history and are never
+    touched), and to this year's window (other years -- e.g. next year's,
+    synced in an earlier December run -- are out of scope). A phantom
+    arises because uids are date-based: when a regenerated cache shifts an
+    event's date its uid changes, and the old row would otherwise linger.
+
+    An empty `keep_uids` (a covered year that returned nothing -- not a
+    real case for a full year) skips pruning rather than risk wiping the
+    window, and also sidesteps an empty `NOT IN ()`.
+    """
+
+    if not keep_uids:
+        return
+
+    lower = max(now_iso, f"{year}-01-01")
+    upper = f"{year + 1}-01-01"
+    placeholders = ",".join("?" for _ in keep_uids)
+    sql = (
+        "DELETE FROM events WHERE dt_utc >= ? AND dt_utc < ? "
+        f"AND uid NOT IN ({placeholders})"
+    )
+    write_into_db(db, sql, (lower, upper, *keep_uids))
+
+
+def sync_events(db: str = DB) -> None:
+    """Fetch events from the skyevents service, upsert them, and prune
+    future phantoms per successfully-synced year"""
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for year in sync_years():
+        events = fetch_year(year)
+        if events is None:
+            continue
+
+        rows = [
+            (
+                event["uid"],
+                event["dt_utc"].isoformat(),
+                event["summary"],
+                event["description"],
+                event["url"],
+            )
+            for event in events
+        ]
+        if rows:
+            write_many_into_db(db, upsert_event, rows)
+
+        _prune_future_events(
+            db, year, {event["uid"] for event in events}, now_iso
         )
-        for event in fetch_events()
-    ]
-    if rows:
-        write_many_into_db(db, upsert_event, rows)
 
 
 def get_events_on_day(day: date, tz: str = "", db: str = DB) -> list:

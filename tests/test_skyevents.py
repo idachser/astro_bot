@@ -66,27 +66,28 @@ class TestFetchYear:
             "url": "",
         }
 
-    def test_null_coverage_is_skipped(self, monkeypatch) -> None:
+    def test_null_coverage_returns_none(self, monkeypatch) -> None:
+        # None, not [] -- the caller must not prune an unsynced year
         self._patch_get(
             monkeypatch, FakeResponse(_payload(EVENT, coverage=False))
         )
-        assert skyevents.fetch_year(2026) == []
+        assert skyevents.fetch_year(2026) is None
 
-    def test_non_2xx_gives_empty_list(self, monkeypatch) -> None:
+    def test_non_2xx_returns_none(self, monkeypatch) -> None:
         self._patch_get(
             monkeypatch, FakeResponse(_payload(EVENT), status_ok=False)
         )
-        assert skyevents.fetch_year(2026) == []
+        assert skyevents.fetch_year(2026) is None
 
-    def test_network_error_gives_empty_list(self, monkeypatch) -> None:
+    def test_network_error_returns_none(self, monkeypatch) -> None:
         def fake_get(url, params, timeout):
             raise requests.ConnectionError("network down")
 
         monkeypatch.setattr(skyevents.requests, "get", fake_get)
-        assert skyevents.fetch_year(2026) == []
+        assert skyevents.fetch_year(2026) is None
 
 
-class TestFetchEvents:
+class TestSyncYears:
     def _patch_today(self, monkeypatch, today: date) -> None:
         class FakeDate(date):
             @classmethod
@@ -95,26 +96,10 @@ class TestFetchEvents:
 
         monkeypatch.setattr(skyevents, "date", FakeDate)
 
-    def _patch_years(self, monkeypatch) -> list:
-        requested = []
-
-        def fake_fetch_year(year: int):
-            requested.append(year)
-            return [dict(EVENT, uid=f"e{year}")]
-
-        monkeypatch.setattr(skyevents, "fetch_year", fake_fetch_year)
-        return requested
-
-    def test_fetches_current_year(self, monkeypatch) -> None:
-        years = self._patch_years(monkeypatch)
+    def test_current_year_only(self, monkeypatch) -> None:
         self._patch_today(monkeypatch, date(2026, 7, 3))
-        events = skyevents.fetch_events()
-        assert years == [2026]
-        assert len(events) == 1
+        assert skyevents.sync_years() == [2026]
 
-    def test_fetches_next_year_in_december(self, monkeypatch) -> None:
-        years = self._patch_years(monkeypatch)
+    def test_next_year_in_december(self, monkeypatch) -> None:
         self._patch_today(monkeypatch, date(2026, 12, 5))
-        events = skyevents.fetch_events()
-        assert years == [2026, 2027]
-        assert len(events) == 2
+        assert skyevents.sync_years() == [2026, 2027]

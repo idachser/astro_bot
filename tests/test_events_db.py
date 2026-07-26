@@ -7,6 +7,10 @@ from astro_bot import db_queries as q
 from astro_bot.services import events
 
 
+def DT(year: int, month: int, day: int, hour: int = 0) -> datetime:
+    return datetime(year, month, day, hour, tzinfo=timezone.utc)
+
+
 @pytest.fixture()
 def db_path(tmp_path) -> str:
     path = str(tmp_path / "test.db")
@@ -80,18 +84,41 @@ class TestEventQueries:
         assert result[0][1] == "new"
 
 
+def event_dict(uid: str, dt_utc: datetime) -> dict:
+    return {
+        "uid": uid,
+        "dt_utc": dt_utc,
+        "summary": "Full Moon",
+        "description": "The Moon reaches full phase.",
+        "url": "",
+    }
+
+
+def all_uids(db_path: str) -> list:
+    rows = db.read_from_db(db_path, "SELECT uid FROM events ORDER BY dt_utc")
+    return [row[0] for row in rows]
+
+
 class TestSyncEvents:
-    def test_writes_feed_events_to_db(self, db_path, monkeypatch) -> None:
-        feed = [
-            {
-                "uid": "e1",
-                "dt_utc": datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc),
-                "summary": "Full Moon",
-                "description": "The Moon reaches full phase.",
-                "url": "https://in-the-sky.org/news.php?id=1",
-            }
-        ]
-        monkeypatch.setattr(events, "fetch_events", lambda: feed)
+    def _patch_now(self, monkeypatch, now: datetime) -> None:
+        class FakeDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None) -> datetime:
+                return now if tz is None else now.astimezone(tz)
+
+        monkeypatch.setattr(events, "datetime", FakeDateTime)
+
+    def _patch_source(self, monkeypatch, years: list, by_year: dict) -> None:
+        monkeypatch.setattr(events, "sync_years", lambda: years)
+        monkeypatch.setattr(events, "fetch_year", lambda year: by_year[year])
+
+    def test_writes_events_to_db(self, db_path, monkeypatch) -> None:
+        self._patch_now(monkeypatch, DT(2026, 1, 1))
+        self._patch_source(
+            monkeypatch,
+            [2026],
+            {2026: [event_dict("e1", DT(2026, 7, 3, 10))]},
+        )
 
         events.sync_events(db=db_path)
         result = events.get_events_on_day(date(2026, 7, 3), db=db_path)
@@ -100,16 +127,67 @@ class TestSyncEvents:
                 "2026-07-03T10:00:00+00:00",
                 "Full Moon",
                 "The Moon reaches full phase.",
-                "https://in-the-sky.org/news.php?id=1",
+                "",
             )
         ]
 
-    def test_empty_feed_writes_nothing(self, db_path, monkeypatch) -> None:
-        monkeypatch.setattr(events, "fetch_events", lambda: [])
+    def test_unsynced_year_writes_nothing(self, db_path, monkeypatch) -> None:
+        # fetch_year returns None (network/503/uncovered) -> skipped
+        self._patch_now(monkeypatch, DT(2026, 1, 1))
+        self._patch_source(monkeypatch, [2026], {2026: None})
+
         events.sync_events(db=db_path)
-        assert events.get_events_between(
-            date(2020, 1, 1), date(2030, 1, 1), db=db_path
-        ) == []
+        assert all_uids(db_path) == []
+
+    def test_prunes_future_phantom_not_returned(
+        self, db_path, monkeypatch
+    ) -> None:
+        add_event(db_path, "phantom", "2026-09-01T10:00:00+00:00")
+        self._patch_now(monkeypatch, DT(2026, 7, 15))
+        self._patch_source(
+            monkeypatch,
+            [2026],
+            {2026: [event_dict("kept", DT(2026, 8, 1, 9))]},
+        )
+
+        events.sync_events(db=db_path)
+        assert all_uids(db_path) == ["kept"]
+
+    def test_keeps_past_events_not_returned(
+        self, db_path, monkeypatch
+    ) -> None:
+        add_event(db_path, "history", "2026-03-01T10:00:00+00:00")
+        self._patch_now(monkeypatch, DT(2026, 7, 15))
+        self._patch_source(
+            monkeypatch,
+            [2026],
+            {2026: [event_dict("kept", DT(2026, 8, 1, 9))]},
+        )
+
+        events.sync_events(db=db_path)
+        assert all_uids(db_path) == ["history", "kept"]
+
+    def test_unsynced_year_does_not_prune(
+        self, db_path, monkeypatch
+    ) -> None:
+        add_event(db_path, "future", "2026-09-01T10:00:00+00:00")
+        self._patch_now(monkeypatch, DT(2026, 7, 15))
+        self._patch_source(monkeypatch, [2026], {2026: None})
+
+        events.sync_events(db=db_path)
+        assert all_uids(db_path) == ["future"]
+
+    def test_does_not_prune_other_years(self, db_path, monkeypatch) -> None:
+        add_event(db_path, "next-year", "2027-02-01T10:00:00+00:00")
+        self._patch_now(monkeypatch, DT(2026, 7, 15))
+        self._patch_source(
+            monkeypatch,
+            [2026],
+            {2026: [event_dict("kept", DT(2026, 8, 1, 9))]},
+        )
+
+        events.sync_events(db=db_path)
+        assert all_uids(db_path) == ["kept", "next-year"]
 
 
 class TestInitStorage:
@@ -136,3 +214,14 @@ class TestInitStorage:
             col[1] for col in db.read_from_db(path, q.select_events_columns)
         ]
         assert "uid" in columns and "date" not in columns
+
+    def test_removes_legacy_feed_events(self, tmp_path) -> None:
+        path = str(tmp_path / "mixed.db")
+        db.db_init(path, q.create_events_table)
+        add_event(
+            path, "20260101_08_100@in-the-sky.org", "2026-01-01T21:44:19+00:00"
+        )
+        add_event(path, "full_moon:moon:20260703", "2026-07-03T10:00:00+00:00")
+
+        events.init_storage(db=path)
+        assert all_uids(path) == ["full_moon:moon:20260703"]

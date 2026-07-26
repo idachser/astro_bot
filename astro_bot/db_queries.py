@@ -51,6 +51,13 @@ select_users_columns = "PRAGMA table_info(users)"
 
 drop_events_table = "DROP TABLE events"
 
+# One-time cleanup of rows left by the retired In-The-Sky.org feed: their
+# uids look like `20260101_08_100@in-the-sky.org`, a shape skyevents never
+# produces, so they would otherwise linger as phantom events forever.
+delete_legacy_feed_events = (
+    "DELETE FROM events WHERE uid LIKE '%@in-the-sky.org'"
+)
+
 add_users_lat_column = "ALTER TABLE users ADD COLUMN lat REAL"
 
 add_users_lon_column = "ALTER TABLE users ADD COLUMN lon REAL"
