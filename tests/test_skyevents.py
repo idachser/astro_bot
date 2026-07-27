@@ -19,10 +19,19 @@ class FakeResponse:
         return self._payload
 
 
-def _payload(*events, coverage=True):
+def _covered(*days) -> dict:
+    """The service reports coverage as UTC midnights"""
+
+    return {
+        "from": f"{days[0]}T00:00:00+00:00",
+        "to": f"{days[1]}T00:00:00+00:00",
+    }
+
+
+def _payload(*events, coverage=("2026-07-01", "2026-07-08")):
     return {
         "events": list(events),
-        "coverage": {"from": "x", "to": "y"} if coverage else None,
+        "coverage": _covered(*coverage) if coverage else None,
     }
 
 
@@ -90,9 +99,41 @@ class TestFetchRange:
     def test_null_coverage_returns_none(self, monkeypatch) -> None:
         # None, not [] -- an ungenerated range is not an empty sky
         patch_get(
-            monkeypatch, FakeResponse(_payload(EVENT, coverage=False))
+            monkeypatch, FakeResponse(_payload(EVENT, coverage=None))
         )
         assert skyevents.fetch_range(*JULY) is None
+
+    def test_partial_coverage_returns_none(self, monkeypatch) -> None:
+        """The service clamps coverage to the years it has instead of
+        refusing the window, so half an answer arrives with a non-null
+        coverage -- rendering that as "no events" is the whole bug this
+        client exists to avoid"""
+
+        patch_get(
+            monkeypatch,
+            FakeResponse(
+                _payload(EVENT, coverage=("2026-07-01", "2026-07-04"))
+            ),
+        )
+        assert skyevents.fetch_range(*JULY) is None
+
+    def test_coverage_starting_late_returns_none(self, monkeypatch) -> None:
+        patch_get(
+            monkeypatch,
+            FakeResponse(
+                _payload(EVENT, coverage=("2026-07-03", "2026-07-08"))
+            ),
+        )
+        assert skyevents.fetch_range(*JULY) is None
+
+    def test_wider_coverage_is_fine(self, monkeypatch) -> None:
+        patch_get(
+            monkeypatch,
+            FakeResponse(
+                _payload(EVENT, coverage=("2026-01-01", "2027-01-01"))
+            ),
+        )
+        assert skyevents.fetch_range(*JULY) is not None
 
     def test_non_2xx_returns_none(self, monkeypatch) -> None:
         patch_get(
@@ -107,8 +148,22 @@ class TestFetchRange:
         monkeypatch.setattr(skyevents.requests, "get", fake_get)
         assert skyevents.fetch_range(*JULY) is None
 
-    def test_unexpected_shape_returns_none(self, monkeypatch) -> None:
-        patch_get(monkeypatch, FakeResponse({"events": [{}], "coverage": {}}))
+    def test_missing_fields_return_none(self, monkeypatch) -> None:
+        patch_get(monkeypatch, FakeResponse(_payload({})))
+        assert skyevents.fetch_range(*JULY) is None
+
+    def test_unparsable_time_returns_none(self, monkeypatch) -> None:
+        # must not raise: nothing above this catches, and the user would
+        # get no reply at all instead of "try later"
+        patch_get(
+            monkeypatch, FakeResponse(_payload(dict(EVENT, dt_utc=None)))
+        )
+        assert skyevents.fetch_range(*JULY) is None
+
+    def test_payload_that_is_not_an_object_returns_none(
+        self, monkeypatch
+    ) -> None:
+        patch_get(monkeypatch, FakeResponse([EVENT]))
         assert skyevents.fetch_range(*JULY) is None
 
 
