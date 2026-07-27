@@ -31,6 +31,13 @@ IMAGE_OF_THE_DAY_URL = (
 )
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
+# Events
+EVENTS_CACHE_TTL_SECONDS = 3600
+
 # Scheduler
 SATURDAY = 5
 SECONDS_PER_DAY = 86400
+# Backoff before giving up on the weekly digest. It is the one thing that
+# cannot simply be asked for again later: a user pressing a button retries
+# by pressing it again, the broadcast only comes round next Saturday.
+DIGEST_RETRY_DELAYS = (60, 300, 900)

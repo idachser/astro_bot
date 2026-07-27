@@ -17,15 +17,6 @@ def execute_query(conn: sq3.Connection, sql: str, params=()) -> None:
         logging.exception(f"DB EXECUTE Query Error: {err}")
 
 
-def execute_many(conn: sq3.Connection, sql: str, rows: list) -> None:
-    cursor = conn.cursor()
-    try:
-        cursor.executemany(sql, rows)
-        conn.commit()
-    except Error as err:
-        logging.exception(f"DB EXECUTE MANY Error: {err}")
-
-
 def execute_read(conn: sq3.Connection, sql: str, params=()) -> list:
     cursor = conn.cursor()
     result = []
@@ -49,13 +40,6 @@ def write_into_db(db: str, sql: str, data: tuple = ()) -> None:
     conn = create_connection(db)
     if conn:
         execute_query(conn, sql, data)
-        conn.close()
-
-
-def write_many_into_db(db: str, sql: str, rows: list) -> None:
-    conn = create_connection(db)
-    if conn:
-        execute_many(conn, sql, rows)
         conn.close()
 
 

@@ -5,6 +5,7 @@ from astro_bot.services.events import get_events_on_day
 from astro_bot.services.users import get_user_profile
 from astro_bot.services.weather import get_events_weather
 from astro_bot.templates import (
+    EVENTS_UNAVAILABLE_MESSAGE,
     MESSAGE_WITH_DAY_EVENTS,
     NOTHING_NEWS_FOUND,
     WEATHER_FOOTER,
@@ -21,15 +22,17 @@ def get_day_message(
 
     The profile is read once here and reused for the day window, the
     event times and the forecast. Handlers call this through
-    asyncio.to_thread, so every blocking call — DB and the weather
-    HTTP request — stays off the event loop; don't read the profile
-    in a handler instead, that puts a DB hit back on the loop.
+    asyncio.to_thread, so every blocking call — the DB, the events
+    request and the weather one — stays off the event loop; don't read
+    the profile in a handler instead, that puts a DB hit back on the loop.
     """
 
     tz, lat, lon = get_user_profile(user_id)
     day = pick_day(today_in(tz))
 
     events = get_events_on_day(day, tz=tz)
+    if events is None:
+        return day, EVENTS_UNAVAILABLE_MESSAGE
     if not events:
         return day, NOTHING_NEWS_FOUND
 

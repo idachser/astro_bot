@@ -7,14 +7,6 @@ create_users_table = """CREATE TABLE IF NOT EXISTS users (
     lon REAL
     )"""
 
-create_events_table = """CREATE TABLE IF NOT EXISTS events (
-    uid TEXT PRIMARY KEY,
-    dt_utc TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    description TEXT,
-    url TEXT
-    )"""
-
 upsert_user = """INSERT INTO
     users (telegram_id, user_name, name, timezone, lat, lon)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -25,38 +17,21 @@ upsert_user = """INSERT INTO
         lat=excluded.lat,
         lon=excluded.lon"""
 
-upsert_event = """INSERT INTO
-    events (uid, dt_utc, summary, description, url)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(uid) DO UPDATE SET
-        dt_utc=excluded.dt_utc,
-        summary=excluded.summary,
-        description=excluded.description,
-        url=excluded.url"""
-
 select_users_id = "SELECT telegram_id FROM users"
 
 select_user_profile = """SELECT timezone, lat, lon
     FROM users WHERE telegram_id = ?"""
 
-select_events_in_window = """SELECT dt_utc, summary, description, url
-    FROM events WHERE dt_utc >= ? AND dt_utc < ? ORDER BY dt_utc"""
-
-select_events_between = """SELECT dt_utc, summary, description, url
-    FROM events WHERE date(dt_utc) BETWEEN ? AND ? ORDER BY dt_utc"""
-
-select_events_columns = "PRAGMA table_info(events)"
-
 select_users_columns = "PRAGMA table_info(users)"
 
-drop_events_table = "DROP TABLE events"
+select_journal_mode_wal = "PRAGMA journal_mode=WAL"
 
-# One-time cleanup of rows left by the retired In-The-Sky.org feed: their
-# uids look like `20260101_08_100@in-the-sky.org`, a shape skyevents never
-# produces, so they would otherwise linger as phantom events forever.
-delete_legacy_feed_events = (
-    "DELETE FROM events WHERE uid LIKE '%@in-the-sky.org'"
-)
+select_journal_mode = "PRAGMA journal_mode"
+
+# One-time cleanup for databases written by the versions that kept their
+# own copy of the events; the bot reads them from the skyevents service
+# now and stores nothing.
+drop_events_table = "DROP TABLE IF EXISTS events"
 
 add_users_lat_column = "ALTER TABLE users ADD COLUMN lat REAL"
 

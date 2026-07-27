@@ -1,5 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import date
 
+import pytest
 import requests
 
 from astro_bot.services import skyevents
@@ -36,70 +37,117 @@ EVENT = {
     "url": "",
 }
 
+JULY = (date(2026, 7, 1), date(2026, 7, 8))
 
-class TestFetchYear:
-    def _patch_get(self, monkeypatch, response):
-        captured = {}
 
-        def fake_get(url, params, timeout):
-            captured["url"] = url
-            captured["params"] = params
-            return response
+@pytest.fixture(autouse=True)
+def clear_cache():
+    skyevents._cache.clear()
+    yield
+    skyevents._cache.clear()
 
-        monkeypatch.setattr(skyevents.requests, "get", fake_get)
-        return captured
 
-    def test_requests_the_year_window(self, monkeypatch) -> None:
-        captured = self._patch_get(monkeypatch, FakeResponse(_payload()))
-        skyevents.fetch_year(2026)
-        assert captured["url"].endswith("/v1/events")
-        assert captured["params"] == {"from": "2026-01-01", "to": "2027-01-01"}
+def patch_get(monkeypatch, *responses) -> list:
+    """Answer each request with the next response, recording the calls"""
 
-    def test_parses_event_fields(self, monkeypatch) -> None:
-        self._patch_get(monkeypatch, FakeResponse(_payload(EVENT)))
-        event = skyevents.fetch_year(2026)[0]
-        assert event == {
-            "uid": "full_moon:moon:20260703",
-            "dt_utc": datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc),
-            "summary": "Full moon",
-            "description": "",
-            "url": "",
-        }
+    calls = []
+    queue = list(responses)
+
+    def fake_get(url, params, timeout):
+        calls.append((url, params))
+        return queue.pop(0) if len(queue) > 1 else queue[0]
+
+    monkeypatch.setattr(skyevents.requests, "get", fake_get)
+    return calls
+
+
+class TestFetchRange:
+    def test_requests_the_range_as_given(self, monkeypatch) -> None:
+        calls = patch_get(monkeypatch, FakeResponse(_payload()))
+        skyevents.fetch_range(*JULY)
+
+        url, params = calls[0]
+        assert url.endswith("/v1/events")
+        assert params == {"from": "2026-07-01", "to": "2026-07-08"}
+
+    def test_parses_event_rows(self, monkeypatch) -> None:
+        patch_get(monkeypatch, FakeResponse(_payload(EVENT)))
+        assert skyevents.fetch_range(*JULY) == [
+            ("2026-07-03T10:00:00+00:00", "Full moon", "", "")
+        ]
+
+    def test_orders_by_time(self, monkeypatch) -> None:
+        later = dict(EVENT, dt_utc="2026-07-05T09:00:00+00:00")
+        earlier = dict(EVENT, dt_utc="2026-07-02T09:00:00.123456+00:00")
+        patch_get(monkeypatch, FakeResponse(_payload(later, EVENT, earlier)))
+
+        assert [row[0] for row in skyevents.fetch_range(*JULY)] == [
+            "2026-07-02T09:00:00.123456+00:00",
+            "2026-07-03T10:00:00+00:00",
+            "2026-07-05T09:00:00+00:00",
+        ]
 
     def test_null_coverage_returns_none(self, monkeypatch) -> None:
-        # None, not [] -- the caller must not prune an unsynced year
-        self._patch_get(
+        # None, not [] -- an ungenerated range is not an empty sky
+        patch_get(
             monkeypatch, FakeResponse(_payload(EVENT, coverage=False))
         )
-        assert skyevents.fetch_year(2026) is None
+        assert skyevents.fetch_range(*JULY) is None
 
     def test_non_2xx_returns_none(self, monkeypatch) -> None:
-        self._patch_get(
+        patch_get(
             monkeypatch, FakeResponse(_payload(EVENT), status_ok=False)
         )
-        assert skyevents.fetch_year(2026) is None
+        assert skyevents.fetch_range(*JULY) is None
 
     def test_network_error_returns_none(self, monkeypatch) -> None:
         def fake_get(url, params, timeout):
             raise requests.ConnectionError("network down")
 
         monkeypatch.setattr(skyevents.requests, "get", fake_get)
-        assert skyevents.fetch_year(2026) is None
+        assert skyevents.fetch_range(*JULY) is None
+
+    def test_unexpected_shape_returns_none(self, monkeypatch) -> None:
+        patch_get(monkeypatch, FakeResponse({"events": [{}], "coverage": {}}))
+        assert skyevents.fetch_range(*JULY) is None
 
 
-class TestSyncYears:
-    def _patch_today(self, monkeypatch, today: date) -> None:
-        class FakeDate(date):
-            @classmethod
-            def today(cls) -> date:
-                return today
+class TestCache:
+    def test_range_is_fetched_once(self, monkeypatch) -> None:
+        calls = patch_get(monkeypatch, FakeResponse(_payload(EVENT)))
 
-        monkeypatch.setattr(skyevents, "date", FakeDate)
+        first = skyevents.fetch_range(*JULY)
+        second = skyevents.fetch_range(*JULY)
 
-    def test_current_year_only(self, monkeypatch) -> None:
-        self._patch_today(monkeypatch, date(2026, 7, 3))
-        assert skyevents.sync_years() == [2026]
+        assert first == second
+        assert len(calls) == 1
 
-    def test_next_year_in_december(self, monkeypatch) -> None:
-        self._patch_today(monkeypatch, date(2026, 12, 5))
-        assert skyevents.sync_years() == [2026, 2027]
+    def test_other_ranges_are_fetched_separately(self, monkeypatch) -> None:
+        calls = patch_get(monkeypatch, FakeResponse(_payload(EVENT)))
+
+        skyevents.fetch_range(*JULY)
+        skyevents.fetch_range(date(2026, 8, 1), date(2026, 8, 8))
+
+        assert len(calls) == 2
+
+    def test_failures_are_not_cached(self, monkeypatch) -> None:
+        calls = patch_get(
+            monkeypatch,
+            FakeResponse(_payload(EVENT), status_ok=False),
+            FakeResponse(_payload(EVENT)),
+        )
+
+        assert skyevents.fetch_range(*JULY) is None
+        assert skyevents.fetch_range(*JULY) is not None
+        assert len(calls) == 2
+
+    def test_expired_entries_are_dropped(self, monkeypatch) -> None:
+        calls = patch_get(monkeypatch, FakeResponse(_payload(EVENT)))
+        skyevents.fetch_range(*JULY)
+
+        stored_at, events = skyevents._cache[JULY]
+        aged = stored_at - skyevents.EVENTS_CACHE_TTL_SECONDS
+        skyevents._cache[JULY] = (aged, events)
+
+        skyevents.fetch_range(*JULY)
+        assert len(calls) == 2

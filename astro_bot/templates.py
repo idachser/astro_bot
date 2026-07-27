@@ -41,6 +41,9 @@ START_MESSAGE = f"""You can send me commands (press keys):
 HELP_MESSAGE = COMMANDS_LIST
 
 NOTHING_NEWS_FOUND = "No events found..."
+# Distinct from NOTHING_NEWS_FOUND on purpose: events are read live, and
+# an unreachable service must not be reported as a quiet sky
+EVENTS_UNAVAILABLE_MESSAGE = "Can't get the events now. Try later."
 IMAGE_ERROR_MESSAGE = "Can't get the image of the day now. Try later."
 WRONG_DATE_MESSAGE = (
     "I can't understand the date. "

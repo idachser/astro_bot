@@ -3,7 +3,7 @@ import pytest
 from astro_bot import db
 from astro_bot import db_queries as q
 from astro_bot.services import users
-from astro_bot.services.events import init_storage
+from astro_bot.services.users import init_storage
 
 create_legacy_users_table = """CREATE TABLE users (
     telegram_id BIGINT PRIMARY KEY,
@@ -70,6 +70,42 @@ class TestUsers:
 
     def test_unknown_user_has_empty_profile(self, db_path) -> None:
         assert users.get_user_profile(99, db=db_path) == ("", None, None)
+
+
+class TestInitStorage:
+    def test_creates_the_users_table(self, tmp_path) -> None:
+        path = str(tmp_path / "fresh.db")
+        init_storage(db=path)
+
+        columns = [
+            col[1] for col in db.read_from_db(path, q.select_users_columns)
+        ]
+        assert columns == [
+            "telegram_id",
+            "user_name",
+            "name",
+            "timezone",
+            "lat",
+            "lon",
+        ]
+
+    def test_enables_wal(self, tmp_path) -> None:
+        path = str(tmp_path / "fresh.db")
+        init_storage(db=path)
+
+        mode = db.read_from_db(path, q.select_journal_mode)
+        assert mode[0][0].lower() == "wal"
+
+    def test_drops_the_events_table_of_older_versions(self, tmp_path) -> None:
+        path = str(tmp_path / "with_events.db")
+        db.db_init(path, "CREATE TABLE events (uid TEXT PRIMARY KEY)")
+
+        init_storage(db=path)
+
+        tables = db.read_from_db(
+            path, "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+        assert [row[0] for row in tables] == ["users"]
 
 
 class TestLocationMigration:

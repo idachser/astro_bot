@@ -1,40 +1,34 @@
 import logging
+import threading
+import time
 from datetime import date, datetime
 
 import requests
 
-from astro_bot.config import SKYEVENTS_URL
+from astro_bot.config import EVENTS_CACHE_TTL_SECONDS, SKYEVENTS_URL
 
-DECEMBER = 12
 REQUEST_TIMEOUT = 30
 
-
-def sync_years() -> list[int]:
-    """Years to sync now: the current one, plus next year in December."""
-
-    today = date.today()
-    years = [today.year]
-    if today.month == DECEMBER:
-        years.append(today.year + 1)
-    return years
+# Day handlers reach this from asyncio.to_thread, so the cache is shared
+# by worker threads: every read, prune and write goes through the lock or
+# a concurrent insert breaks the prune mid-iteration
+_cache: dict = {}
+_cache_lock = threading.Lock()
 
 
-def fetch_year(year: int) -> list[dict] | None:
-    """Fetch one year of events from the skyevents /v1/events endpoint.
+def _request_range(start: date, end: date) -> list | None:
+    """Ask skyevents for `start <= dt_utc < end` (`end` exclusive, as the
+    endpoint itself defines the window) and return the rows the bot
+    renders: (dt_utc, summary, description, url), ordered by time.
 
-    Returns event dicts shaped like the DB rows the bot stores
-    (uid, dt_utc, summary, description, url) when the year was served,
-    or ``None`` when it was *not* — a network error, a non-2xx response
-    (skyevents answers 503 while a year is still generating), or
-    ``coverage: null`` (the year lies outside the generated range).
-
-    The None-vs-list distinction matters to the caller's pruning: a year
-    that could not be synced must not have its stored events deleted as
-    "no longer returned". A year <= 366 days is well inside the
-    endpoint's 400-day window cap, so one request per year is enough.
+    Returns ``None`` -- never an empty list -- when the service could not
+    answer: a network error, a non-2xx response (it answers 503 while a
+    year is still generating), ``coverage: null`` (the range lies outside
+    the generated years), or a payload shaped unexpectedly. The caller
+    must tell that apart from a day that genuinely has no events.
     """
 
-    params = {"from": f"{year}-01-01", "to": f"{year + 1}-01-01"}
+    params = {"from": start.isoformat(), "to": end.isoformat()}
     try:
         response = requests.get(
             f"{SKYEVENTS_URL}/v1/events",
@@ -44,23 +38,63 @@ def fetch_year(year: int) -> list[dict] | None:
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as err:
-        logging.exception(f"skyevents request failed for {year}: {err}")
+        logging.exception(f"skyevents request failed for {params}: {err}")
         return None
     except ValueError as err:
-        logging.exception(f"skyevents returned invalid JSON for {year}: {err}")
+        logging.exception(f"skyevents returned invalid JSON: {err}")
         return None
 
     if payload.get("coverage") is None:
-        logging.warning(f"skyevents has not generated {year} yet, skipping")
+        logging.warning(f"skyevents does not cover {params} yet")
         return None
 
-    return [
-        {
-            "uid": event["uid"],
-            "dt_utc": datetime.fromisoformat(event["dt_utc"]),
-            "summary": event["summary"],
-            "description": event.get("description", ""),
-            "url": event.get("url", ""),
-        }
-        for event in payload.get("events", [])
+    try:
+        events = [
+            (
+                event["dt_utc"],
+                event["summary"],
+                event.get("description", ""),
+                event.get("url", ""),
+            )
+            for event in payload["events"]
+        ]
+    except (KeyError, TypeError) as err:
+        logging.exception(f"skyevents returned an unexpected shape: {err}")
+        return None
+
+    return sorted(events, key=lambda event: datetime.fromisoformat(event[0]))
+
+
+def _prune_expired(now: float) -> None:
+    """Caller must hold _cache_lock"""
+
+    expired = [
+        key
+        for key, (stored_at, _) in _cache.items()
+        if now - stored_at >= EVENTS_CACHE_TTL_SECONDS
     ]
+    for key in expired:
+        del _cache[key]
+
+
+def fetch_range(start: date, end: date) -> list | None:
+    """Cached for an hour so week browsing doesn't hit the service on
+    every click; failures are not cached, so an outage heals as soon as
+    skyevents is back. Expired entries are pruned on every call to keep
+    the cache bounded. The request itself runs outside the lock: two
+    threads may fetch the same range at once, but holding it across a
+    30s HTTP call would stall every other user."""
+
+    key = (start, end)
+    now = time.monotonic()
+    with _cache_lock:
+        _prune_expired(now)
+        cached = _cache.get(key)
+    if cached:
+        return cached[1]
+
+    events = _request_range(start, end)
+    if events is not None:
+        with _cache_lock:
+            _cache[key] = (now, events)
+    return events

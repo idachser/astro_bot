@@ -1,125 +1,39 @@
 from datetime import date, datetime, time, timedelta, timezone
 
-from astro_bot.config import DB
+from astro_bot.services.skyevents import fetch_range
 from astro_bot.timezones import resolve_timezone
-from astro_bot.db import (
-    db_init,
-    read_from_db,
-    write_into_db,
-    write_many_into_db,
-)
-from astro_bot.db_queries import (
-    add_users_lat_column,
-    add_users_lon_column,
-    create_events_table,
-    create_users_table,
-    delete_legacy_feed_events,
-    drop_events_table,
-    select_events_between,
-    select_events_columns,
-    select_events_in_window,
-    select_users_columns,
-    upsert_event,
-)
-from astro_bot.services.skyevents import fetch_year, sync_years
 
 
-def init_storage(db: str = DB) -> None:
-    """Create tables and migrate old schemas: drop the legacy events
-    table (string dates), add user location columns"""
+def get_events_on_day(day: date, tz: str = "") -> list | None:
+    """Events of the day in the given timezone (UTC by default) as
+    (dt_utc, summary, description, url) tuples, or None when skyevents
+    could not answer -- which the caller must not render as "no events".
 
-    columns = [col[1] for col in read_from_db(db, select_events_columns)]
-    if columns and "uid" not in columns:
-        write_into_db(db, drop_events_table)
-    db_init(db, create_events_table)
-    write_into_db(db, delete_legacy_feed_events)
-    db_init(db, create_users_table)
-
-    user_columns = [
-        col[1] for col in read_from_db(db, select_users_columns)
-    ]
-    if "lat" not in user_columns:
-        write_into_db(db, add_users_lat_column)
-        write_into_db(db, add_users_lon_column)
-
-
-def _prune_future_events(
-    db: str, year: int, keep_uids: set[str], now_iso: str
-) -> None:
-    """Delete future events in `year` the service no longer returns.
-
-    Scoped two ways so a normal sync can only ever remove genuine
-    phantoms: to `dt_utc >= now` (past events are history and are never
-    touched), and to this year's window (other years -- e.g. next year's,
-    synced in an earlier December run -- are out of scope). A phantom
-    arises because uids are date-based: when a regenerated cache shifts an
-    event's date its uid changes, and the old row would otherwise linger.
-
-    An empty `keep_uids` (a covered year that returned nothing -- not a
-    real case for a full year) skips pruning rather than risk wiping the
-    window, and also sidesteps an empty `NOT IN ()`.
+    A local day is not a whole UTC day: it maps to a UTC interval that
+    straddles two UTC dates (three across a DST shift, which stretches
+    the day to 25 hours). The service takes whole dates, so ask for every
+    date the interval touches and cut to the exact instants here.
     """
-
-    if not keep_uids:
-        return
-
-    lower = max(now_iso, f"{year}-01-01")
-    upper = f"{year + 1}-01-01"
-    placeholders = ",".join("?" for _ in keep_uids)
-    sql = (
-        "DELETE FROM events WHERE dt_utc >= ? AND dt_utc < ? "
-        f"AND uid NOT IN ({placeholders})"
-    )
-    write_into_db(db, sql, (lower, upper, *keep_uids))
-
-
-def sync_events(db: str = DB) -> None:
-    """Fetch events from the skyevents service, upsert them, and prune
-    future phantoms per successfully-synced year"""
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    for year in sync_years():
-        events = fetch_year(year)
-        if events is None:
-            continue
-
-        rows = [
-            (
-                event["uid"],
-                event["dt_utc"].isoformat(),
-                event["summary"],
-                event["description"],
-                event["url"],
-            )
-            for event in events
-        ]
-        if rows:
-            write_many_into_db(db, upsert_event, rows)
-
-        _prune_future_events(
-            db, year, {event["uid"] for event in events}, now_iso
-        )
-
-
-def get_events_on_day(day: date, tz: str = "", db: str = DB) -> list:
-    """Events of the day in the given timezone (UTC by default)
-    as (dt_utc, summary, description, url) tuples"""
 
     start = datetime.combine(day, time.min, resolve_timezone(tz))
     end = start + timedelta(days=1)
-    return read_from_db(
-        db,
-        select_events_in_window,
-        (
-            start.astimezone(timezone.utc).isoformat(),
-            end.astimezone(timezone.utc).isoformat(),
-        ),
-    )
+    start_utc = start.astimezone(timezone.utc)
+    end_utc = end.astimezone(timezone.utc)
+
+    events = fetch_range(start_utc.date(), end_utc.date() + timedelta(days=1))
+    if events is None:
+        return None
+
+    return [
+        event
+        for event in events
+        if start_utc <= datetime.fromisoformat(event[0]) < end_utc
+    ]
 
 
-def get_events_between(start: date, end: date, db: str = DB) -> list:
-    """Events for a date range (inclusive), ordered by time"""
+def get_events_between(start: date, end: date) -> list | None:
+    """Events for a UTC date range (inclusive), ordered by time, or None
+    when skyevents could not answer. `fetch_range` is exclusive at the
+    top, so ask for the day after `end`."""
 
-    return read_from_db(
-        db, select_events_between, (start.isoformat(), end.isoformat())
-    )
+    return fetch_range(start, end + timedelta(days=1))

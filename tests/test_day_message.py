@@ -58,6 +58,21 @@ class TestDayMessageProfileReads:
 
         assert day == expected
 
+    def test_unavailable_service_is_not_an_empty_day(
+        self, monkeypatch
+    ) -> None:
+        """Events are read live now: an outage must not read as a quiet
+        sky"""
+
+        self.profile_counter(monkeypatch)
+        monkeypatch.setattr(
+            day_message, "get_events_on_day", lambda day, tz="": None
+        )
+
+        _, msg = day_message.get_day_message(42, lambda today: today)
+
+        assert msg == day_message.EVENTS_UNAVAILABLE_MESSAGE
+
     def test_pick_day_may_ignore_today(self, monkeypatch) -> None:
         """The week arrows carry an explicit target day"""
 
