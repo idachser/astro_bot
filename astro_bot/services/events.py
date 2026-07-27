@@ -20,7 +20,15 @@ def get_events_on_day(day: date, tz: str = "") -> list | None:
     start_utc = start.astimezone(timezone.utc)
     end_utc = end.astimezone(timezone.utc)
 
-    events = fetch_range(start_utc.date(), end_utc.date() + timedelta(days=1))
+    # Exclusive, so a window ending exactly at midnight (every UTC user,
+    # including the "Default time" and unknown-zone fallbacks) must not
+    # ask for the day after: fetch_range demands full coverage, and that
+    # extra day is the one skyevents has not generated on 31 December.
+    end_date = end_utc.date()
+    if end_utc.time() != time.min:
+        end_date += timedelta(days=1)
+
+    events = fetch_range(start_utc.date(), end_date)
     if events is None:
         return None
 

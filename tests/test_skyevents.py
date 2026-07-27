@@ -160,6 +160,15 @@ class TestFetchRange:
         )
         assert skyevents.fetch_range(*JULY) is None
 
+    def test_naive_time_returns_none(self, monkeypatch) -> None:
+        # it would sort fine and blow up later, comparing offset-naive
+        # to offset-aware in code no handler guards
+        patch_get(
+            monkeypatch,
+            FakeResponse(_payload(dict(EVENT, dt_utc="2026-07-03T10:00:00"))),
+        )
+        assert skyevents.fetch_range(*JULY) is None
+
     def test_payload_that_is_not_an_object_returns_none(
         self, monkeypatch
     ) -> None:

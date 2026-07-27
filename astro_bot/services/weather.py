@@ -96,7 +96,9 @@ def get_day_forecast(
     forecast = _fetch_day_forecast(lat, lon, day, tz)
     if forecast is not None:
         with _cache_lock:
-            _cache[key] = (now, forecast)
+            # timed from arrival, not from when the request went out --
+            # otherwise a slow call eats its own entry's TTL
+            _cache[key] = (time.monotonic(), forecast)
     return forecast
 
 

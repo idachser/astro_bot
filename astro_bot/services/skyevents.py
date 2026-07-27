@@ -82,7 +82,7 @@ def _request_range(start: date, end: date) -> list | None:
             logging.warning(f"skyevents covers only {coverage} of {params}")
             return None
 
-        events = [
+        rows = [
             (
                 event["dt_utc"],
                 event["summary"],
@@ -91,9 +91,18 @@ def _request_range(start: date, end: date) -> list | None:
             )
             for event in payload["events"]
         ]
-        return sorted(
-            events, key=lambda event: datetime.fromisoformat(event[0])
-        )
+        # Validate the times here, where a bad one is still containable:
+        # every consumer above compares or converts them against aware
+        # datetimes, and a naive one would raise there instead -- inside
+        # a to_thread call in a handler that catches nothing
+        times = [datetime.fromisoformat(row[0]) for row in rows]
+        if any(dt.tzinfo is None for dt in times):
+            raise ValueError("dt_utc without a timezone offset")
+
+        return [
+            row
+            for _, row in sorted(zip(times, rows), key=lambda pair: pair[0])
+        ]
     except (AttributeError, KeyError, TypeError, ValueError) as err:
         # every field the payload is trusted for is read in here: a null
         # dt_utc, a date that does not parse, a JSON array where an
@@ -138,5 +147,7 @@ def fetch_range(start: date, end: date) -> list | None:
     events = _request_range(start, end)
     if events is not None:
         with _cache_lock:
-            _cache[key] = (now, events)
+            # timed from arrival, not from when the request went out --
+            # otherwise a slow call eats its own entry's TTL
+            _cache[key] = (clock.monotonic(), events)
     return events

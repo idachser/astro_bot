@@ -65,6 +65,16 @@ class TestEventsOnDay:
         assert start == date(2026, 7, 2)
         assert end > date(2026, 7, 3)  # exclusive, must cover the 3rd
 
+    def test_utc_day_asks_for_exactly_that_day(self, monkeypatch) -> None:
+        """A window ending at midnight touches one UTC date. Asking for
+        the day after would demand coverage of 1 January to show
+        31 December, and fetch_range wants the whole range covered."""
+
+        asked = patch_range(monkeypatch, [])
+        events.get_events_on_day(date(2026, 12, 31))
+
+        assert asked == [(date(2026, 12, 31), date(2027, 1, 1))]
+
     def test_unavailable_service_is_not_an_empty_day(
         self, monkeypatch
     ) -> None:
