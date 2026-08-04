@@ -1,21 +1,34 @@
 import logging
+import threading
 from datetime import date, datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from timezonefinder import TimezoneFinder
 
-_finder = None
+# One finder per thread, not per process. `zone_for_location` runs on
+# asyncio.to_thread workers, and timezonefinder is explicit that an
+# instance must not be shared across threads ("can lead to race
+# conditions and incorrect results" -- timezonefinder.py). The package
+# also ships a "thread-safe" global singleton that does share one, which
+# contradicts its own class docs; not worth the bet, because a race here
+# writes a wrong zone into the user's profile and silently skews every
+# day they ask for afterwards, with nothing in the logs.
+_finders = threading.local()
 
 
 def _location_finder() -> TimezoneFinder:
-    """Built once and kept. The constructor maps the boundary data and
-    costs the better part of a second, against microseconds for a
-    lookup -- `/start` used to build a fresh one per shared location."""
+    """The calling thread's finder, built on first use.
 
-    global _finder
-    if _finder is None:
-        _finder = TimezoneFinder()
-    return _finder
+    Building one maps the boundary data and costs the better part of a
+    second, against microseconds for a lookup, so it is worth keeping --
+    `/start` used to build a fresh one per shared location, on the event
+    loop. Per thread the cost lands once, and off the loop.
+    """
+
+    finder = getattr(_finders, "finder", None)
+    if finder is None:
+        finder = _finders.finder = TimezoneFinder()
+    return finder
 
 
 def zone_for_location(lat: float, lon: float) -> str:

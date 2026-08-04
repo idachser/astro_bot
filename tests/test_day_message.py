@@ -1,3 +1,4 @@
+import threading
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -103,10 +104,45 @@ class TestZoneForLocation:
         for lat, lon in [(90, 0), (-90, 0), (0, 180), (0, -180)]:
             assert resolve_timezone(zone_for_location(lat, lon)) is not None
 
-    def test_the_finder_is_built_once(self) -> None:
+    def test_the_finder_is_reused_within_a_thread(self) -> None:
         # the constructor maps the boundary data and costs ~0.7s; /start
         # used to pay it per shared location, on the event loop
-        zone_for_location(52.52, 13.40)
         first = timezones._location_finder()
 
         assert timezones._location_finder() is first
+
+    def test_each_thread_gets_its_own_finder(self) -> None:
+        # timezonefinder is explicit that an instance must not be shared
+        # between threads, and this runs on asyncio.to_thread workers --
+        # a race here writes a wrong zone into the user's profile
+        finders = []
+        threads = [
+            threading.Thread(
+                target=lambda: finders.append(timezones._location_finder())
+            )
+            for _ in range(3)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len({id(finder) for finder in finders}) == 3
+        assert timezones._location_finder() not in finders
+
+    def test_concurrent_lookups_agree(self) -> None:
+        # kept to three: every thread here builds its own finder, and
+        # that costs the better part of a second each
+        results = []
+        threads = [
+            threading.Thread(
+                target=lambda: results.append(zone_for_location(52.52, 13.40))
+            )
+            for _ in range(3)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert results == ["Europe/Berlin"] * 3

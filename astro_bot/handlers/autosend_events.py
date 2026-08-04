@@ -45,16 +45,19 @@ async def _fetch_week(today: date) -> list | None:
     return None
 
 
-async def send_weekly_digest(bot: Bot) -> bool:
-    """Broadcast the week to every user. Returns whether it actually went
-    out, which is what the slot marker records: an outage or a quiet week
-    sends nothing and stays unrecorded, so a restart inside the catch-up
-    window gets to try again."""
+async def send_weekly_digest(bot: Bot, today: date) -> bool:
+    """Broadcast the week starting at `today` to every user. Returns
+    whether it actually reached anyone, which is what the slot marker
+    records: an outage, a quiet week or a Telegram that refuses every
+    send stays unrecorded, so a restart inside the catch-up window gets
+    to try again.
 
-    # UTC, like the slot the scheduler fires on and like the dates
-    # `get_events_between` asks skyevents for -- the server's local day
-    # is nobody's here
-    today = datetime.now(timezone.utc).date()
+    `today` is the slot's own UTC date, passed in rather than read off
+    the clock here. With a catch-up window that runs past midnight the
+    two differ -- a Sunday catch-up serves Saturday's slot -- and the
+    digest has to cover the week it is filed under.
+    """
+
     events = await _fetch_week(today)
     if events is None:
         logging.error("skyevents unreachable, weekly digest not sent")
@@ -64,6 +67,7 @@ async def send_weekly_digest(bot: Bot) -> bool:
         return False
 
     digest = WEEK_DIGEST_MESSAGE(events)
+    delivered = 0
     # Small read, but it is still SQLite: the only blocking DB call left
     # on the event loop was this one
     for user_id in await asyncio.to_thread(get_users_ids):
@@ -77,10 +81,16 @@ async def send_weekly_digest(bot: Bot) -> bool:
                 reply_markup=get_inline_week_keyboard(today, anchor=today),
                 disable_web_page_preview=True,
             )
+            delivered += 1
         except Exception as err:
             logging.error(f"Digest was not sent to {user_id}: {err}")
 
-    return True
+    if not delivered:
+        # Every send failed (an unreachable Telegram, a rejected token):
+        # reporting success here would file the slot as broadcast and
+        # talk the catch-up out of the retry it exists for
+        logging.error("Weekly digest reached nobody")
+    return delivered > 0
 
 
 def last_digest_slot(now: datetime) -> datetime:
@@ -96,16 +106,13 @@ def last_digest_slot(now: datetime) -> datetime:
 
 
 def missed_digest_slot(now: datetime) -> bool:
-    """Whether a process starting at `now` still owes the last slot a
-    broadcast: the slot went by less than DIGEST_CATCHUP_HOURS ago and
-    the marker does not already name it.
+    """Whether `now` is still inside the last slot's catch-up window --
+    late enough that a starting process should consider broadcasting it,
+    early enough that the digest is still worth sending.
 
-    Without the marker this could only guess. A restart just after the
-    slot means either "was down while it passed, nobody got the digest"
-    or "sent it, then CI redeployed" -- indistinguishable from the clock
-    alone, and guessing "send" turned a Saturday crash loop into N copies
-    for every user. `read_last_slot` settles it, so the window is now
-    only about how late a catch-up is still worth doing.
+    Purely a question about the clock. Whether that slot *actually* still
+    needs sending is the marker's job, and `_broadcast` asks it, so the
+    two paths into a broadcast cannot disagree about it.
 
     The window is measured back from the last slot rather than by asking
     whether today is Saturday: it may run past midnight into Sunday,
@@ -113,10 +120,9 @@ def missed_digest_slot(now: datetime) -> bool:
     over 24, and a weekday test would quietly stop catching up there.
     """
 
-    slot = last_digest_slot(now)
-    if now >= slot + timedelta(hours=DIGEST_CATCHUP_HOURS):
-        return False
-    return read_last_slot() != slot
+    return now < last_digest_slot(now) + timedelta(
+        hours=DIGEST_CATCHUP_HOURS
+    )
 
 
 def next_digest_time(now: datetime) -> datetime:
@@ -134,9 +140,21 @@ def next_digest_time(now: datetime) -> datetime:
 
 
 async def _broadcast(bot: Bot, slot: datetime) -> None:
-    """Send, and on success record the slot so no restart repeats it"""
+    """Send the digest for `slot`, unless it already went out, and record
+    it when it reaches someone.
 
-    if await send_weekly_digest(bot):
+    Every broadcast goes through here -- the startup catch-up and the
+    scheduled one alike -- so the marker guards both. It has to guard the
+    scheduled path too: `asyncio.sleep` counts monotonic seconds, so a
+    wall clock stepped back after a send puts `next_digest_time` right
+    back on the slot that just fired, and every user would get the same
+    digest a second time.
+    """
+
+    if read_last_slot() == slot:
+        logging.info(f"Digest for {slot.isoformat()} already sent, skipping")
+        return
+    if await send_weekly_digest(bot, slot.date()):
         record_slot(slot)
 
 
