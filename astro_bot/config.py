@@ -2,7 +2,12 @@ import os
 from dotenv import load_dotenv
 
 
-BASE_PATH = os.path.dirname(os.path.abspath(__name__))
+# The repo root, resolved from this file rather than from `__name__` --
+# that was the *module name* string, so it silently resolved to whatever
+# the working directory happened to be. It matched only because Docker's
+# WORKDIR is /app; running from anywhere else lost the .env and pointed
+# DB (and with it the digest marker) at the wrong place.
+BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 dotenv_path = os.path.join(BASE_PATH, ".env")
 if os.path.exists(dotenv_path):

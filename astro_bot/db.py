@@ -3,9 +3,18 @@ import sqlite3 as sq3
 from sqlite3 import Error
 
 
-def create_connection(db: str) -> sq3.Connection:
-    connection = sq3.connect(db)
-    return connection
+def create_connection(db: str) -> sq3.Connection | None:
+    """None when the file cannot be opened -- an unwritable volume or a
+    bad DB path. Every caller already guards on that; without the guard
+    the error escaped through `get_user_profile` into a day handler that
+    catches nothing, and the user got no reply at all instead of a
+    message saying to try later."""
+
+    try:
+        return sq3.connect(db)
+    except Error as err:
+        logging.exception(f"DB CONNECT Error: {err}")
+        return None
 
 
 def execute_query(conn: sq3.Connection, sql: str, params=()) -> None:

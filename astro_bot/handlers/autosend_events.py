@@ -64,7 +64,9 @@ async def send_weekly_digest(bot: Bot) -> bool:
         return False
 
     digest = WEEK_DIGEST_MESSAGE(events)
-    for user_id in get_users_ids():
+    # Small read, but it is still SQLite: the only blocking DB call left
+    # on the event loop was this one
+    for user_id in await asyncio.to_thread(get_users_ids):
         try:
             await bot.send_message(
                 user_id,

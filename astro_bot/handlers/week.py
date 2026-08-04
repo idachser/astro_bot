@@ -2,6 +2,7 @@ import asyncio
 
 from aiogram import Dispatcher, types
 from aiogram.dispatcher.filters import Text
+from aiogram.utils.exceptions import MessageNotModified
 
 from astro_bot.handlers.get_specific_date_event import get_day_message
 from astro_bot.keyboards.inline_keyboard import (
@@ -29,12 +30,21 @@ async def switch_week_day(call: types.CallbackQuery) -> None:
     day, msg = await asyncio.to_thread(
         get_day_message, call.from_user.id, lambda today: target
     )
-    await call.message.edit_text(
-        msg,
-        reply_markup=get_inline_week_keyboard(day, anchor),
-        disable_web_page_preview=True,
-    )
-    await call.answer()
+    try:
+        await call.message.edit_text(
+            msg,
+            reply_markup=get_inline_week_keyboard(day, anchor),
+            disable_web_page_preview=True,
+        )
+    except MessageNotModified:
+        # A double tap delivers the same callback twice and the second
+        # edit changes nothing, which Telegram rejects. The message
+        # already shows what was asked for, so there is nothing to do.
+        pass
+    finally:
+        # Always, even if the edit failed: until this lands the button
+        # keeps spinning for the user.
+        await call.answer()
 
 
 def register_handler_week(dp: Dispatcher) -> None:

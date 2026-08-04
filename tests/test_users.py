@@ -122,3 +122,23 @@ class TestLocationMigration:
 
         profile = users.get_user_profile(42, db=path)
         assert profile == ("Europe/Berlin", None, None)
+
+
+class TestUnopenableDatabase:
+    """A connect failure must degrade, not escape: these run inside
+    `get_day_message` on a worker thread, in a handler that catches
+    nothing, so a raise means the user gets no reply at all"""
+
+    def test_connect_failure_returns_none(self, tmp_path) -> None:
+        assert db.create_connection(str(tmp_path)) is None  # a directory
+
+    def test_reads_degrade_to_empty(self, tmp_path) -> None:
+        assert db.read_from_db(str(tmp_path), q.select_users_id) == []
+
+    def test_writes_are_swallowed(self, tmp_path) -> None:
+        db.write_into_db(str(tmp_path), q.upsert_user, (1, "u", "n", "", 0, 0))
+
+    def test_profile_falls_back_to_the_default(self, tmp_path) -> None:
+        profile = users.get_user_profile(42, db=str(tmp_path))
+
+        assert profile == ("", None, None)

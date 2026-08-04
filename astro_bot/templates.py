@@ -49,6 +49,12 @@ WRONG_DATE_MESSAGE = (
     "I can't understand the date. "
     f"Send it in {hbold('Month DD')} format, e.g. 'July 15'."
 )
+# Distinct from WRONG_DATE_MESSAGE: the date was understood perfectly,
+# it just doesn't exist in this year. Only February 29 gets here.
+NO_SUCH_DATE_MESSAGE = (
+    "That date doesn't exist this year — "
+    f"{hbold('February 29')} only comes round in a leap year."
+)
 
 
 def format_day_title(day: date) -> str:
