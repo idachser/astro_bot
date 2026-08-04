@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Dispatcher, types
 from aiogram.dispatcher.filters import Text
 
@@ -6,7 +8,10 @@ from astro_bot.templates import IMAGE_ERROR_MESSAGE, MESSAGE_WITH_IMAGE
 
 
 async def get_image(message: types.Message) -> None:
-    data = get_image_of_the_day()
+    # Blocking `requests` call with a 30s timeout: run it off the event
+    # loop like every other outbound request, or a slow APOD stops
+    # polling and nobody gets an answer to anything
+    data = await asyncio.to_thread(get_image_of_the_day)
     if not data or "url" not in data:
         await message.reply(IMAGE_ERROR_MESSAGE)
         return

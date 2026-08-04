@@ -1,7 +1,10 @@
-from datetime import date
+from datetime import date, timedelta
 
 from astro_bot import templates
-from astro_bot.keyboards.inline_keyboard import get_inline_week_keyboard
+from astro_bot.keyboards.inline_keyboard import (
+    get_inline_week_keyboard,
+    parse_week_callback,
+)
 
 EVENT_ROW = (
     "2026-07-03T10:02:46+00:00",
@@ -86,8 +89,8 @@ class TestWeekDigest:
 
 
 class TestWeekKeyboard:
-    def get_callbacks(self, day: date) -> list:
-        keyboard = get_inline_week_keyboard(day)
+    def get_callbacks(self, day: date, anchor: date = None) -> list:
+        keyboard = get_inline_week_keyboard(day, anchor)
         return [
             button.callback_data
             for button in keyboard.inline_keyboard[0]
@@ -96,18 +99,61 @@ class TestWeekKeyboard:
     def test_midweek_points_to_neighbours(self) -> None:
         # 2026-07-01 is Wednesday
         assert self.get_callbacks(date(2026, 7, 1)) == [
-            "week_2026-06-30",
-            "week_2026-07-02",
+            "week_2026-06-29_2026-06-30",
+            "week_2026-06-29_2026-07-02",
         ]
 
     def test_monday_wraps_back_to_sunday(self) -> None:
         assert self.get_callbacks(date(2026, 6, 29)) == [
-            "week_2026-07-05",
-            "week_2026-06-30",
+            "week_2026-06-29_2026-07-05",
+            "week_2026-06-29_2026-06-30",
         ]
 
     def test_sunday_wraps_forward_to_monday(self) -> None:
         assert self.get_callbacks(date(2026, 7, 5)) == [
-            "week_2026-07-04",
-            "week_2026-06-29",
+            "week_2026-06-29_2026-07-04",
+            "week_2026-06-29_2026-06-29",
         ]
+
+    def test_anchor_wraps_within_its_own_window(self) -> None:
+        # the digest's window: Saturday and the six days after it
+        saturday = date(2026, 8, 8)
+        assert self.get_callbacks(saturday, anchor=saturday) == [
+            "week_2026-08-08_2026-08-14",
+            "week_2026-08-08_2026-08-09",
+        ]
+        # ...and the far end wraps back to the Saturday, never into the
+        # Mon-Sun week the anchor happens to sit in
+        assert self.get_callbacks(date(2026, 8, 14), anchor=saturday) == [
+            "week_2026-08-08_2026-08-13",
+            "week_2026-08-08_2026-08-08",
+        ]
+
+    def test_anchored_arrows_reach_every_day_they_advertise(self) -> None:
+        saturday = date(2026, 8, 8)
+        window = {saturday + timedelta(days=i) for i in range(7)}
+
+        seen, day = set(), saturday
+        for _ in range(7):
+            seen.add(day)
+            anchor, day = parse_week_callback(
+                self.get_callbacks(day, anchor=saturday)[1]
+            )
+
+        assert seen == window
+
+
+class TestWeekCallback:
+    def test_round_trips_the_window(self) -> None:
+        assert parse_week_callback("week_2026-08-08_2026-08-11") == (
+            date(2026, 8, 8),
+            date(2026, 8, 11),
+        )
+
+    def test_legacy_callback_anchors_to_monday(self) -> None:
+        # keyboards sent before the anchor existed still sit in chat
+        # histories; pressing one must not blow up the handler
+        assert parse_week_callback("week_2026-07-01") == (
+            date(2026, 6, 29),
+            date(2026, 7, 1),
+        )

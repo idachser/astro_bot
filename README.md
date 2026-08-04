@@ -44,7 +44,9 @@ and run:
 ```bash
 docker compose up -d --build
 ```
-The SQLite database and log persist in `./data/` on the host. The bot
+The SQLite database, the log and a one-line `last_digest` marker (which
+Saturday broadcast already went out, so a redeploy right after one does
+not repeat it) persist in `./data/` on the host. The bot
 talks to skyevents at `http://skyevents:8000` (`SKYEVENTS_URL`); that
 container is deployed separately from the skyevents repo.
 
