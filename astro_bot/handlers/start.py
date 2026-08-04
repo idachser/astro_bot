@@ -1,10 +1,12 @@
+import asyncio
+
 from aiogram import Dispatcher, types
 from aiogram.dispatcher.filters import Text
-from timezonefinder import TimezoneFinder
 
 from astro_bot.services.users import add_user
 from astro_bot.templates import START_MESSAGE
 from astro_bot.keyboards.reply_keyboard import main_keyboard
+from astro_bot.timezones import zone_for_location
 
 
 async def start(message: types.Message) -> None:
@@ -21,12 +23,14 @@ async def start(message: types.Message) -> None:
         location = message.location
         user_data["lat"] = location.latitude
         user_data["lon"] = location.longitude
-        tf = TimezoneFinder()
-        user_data["timezone"] = tf.timezone_at(
-            lng=location.longitude, lat=location.latitude
+        # Both of these block: the very first lookup builds the boundary
+        # data, and the write is SQLite. Same rule as every other handler
+        # -- nothing blocking runs on the event loop.
+        user_data["timezone"] = await asyncio.to_thread(
+            zone_for_location, location.latitude, location.longitude
         )
 
-    add_user(user_data)
+    await asyncio.to_thread(add_user, user_data)
     await message.answer(START_MESSAGE, reply_markup=main_keyboard())
 
 

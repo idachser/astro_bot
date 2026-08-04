@@ -2,6 +2,33 @@ import logging
 from datetime import date, datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from timezonefinder import TimezoneFinder
+
+_finder = None
+
+
+def _location_finder() -> TimezoneFinder:
+    """Built once and kept. The constructor maps the boundary data and
+    costs the better part of a second, against microseconds for a
+    lookup -- `/start` used to build a fresh one per shared location."""
+
+    global _finder
+    if _finder is None:
+        _finder = TimezoneFinder()
+    return _finder
+
+
+def zone_for_location(lat: float, lon: float) -> str:
+    """IANA zone name for a shared location, "" if it cannot be placed.
+
+    timezonefinder covers open water as well as land (at sea it answers
+    with the nominal `Etc/GMT±N` for the longitude), so in practice this
+    always resolves. The empty string is kept as the same "no zone, show
+    UTC" that the Default time button stores, not as an error.
+    """
+
+    return _location_finder().timezone_at(lng=lon, lat=lat) or ""
+
 
 def resolve_timezone(tz_name: str) -> tzinfo:
     """User timezone by IANA name, falling back to UTC"""

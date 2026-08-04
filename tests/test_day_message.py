@@ -2,7 +2,12 @@ from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from astro_bot.handlers import get_specific_date_event as day_message
-from astro_bot.timezones import today_in
+from astro_bot import timezones
+from astro_bot.timezones import (
+    resolve_timezone,
+    today_in,
+    zone_for_location,
+)
 
 
 class TestTodayIn:
@@ -82,3 +87,26 @@ class TestDayMessageProfileReads:
         day, _ = day_message.get_day_message(42, lambda today: target)
 
         assert day == target
+
+
+class TestZoneForLocation:
+    def test_places_a_point_on_land(self) -> None:
+        assert zone_for_location(52.52, 13.40) == "Europe/Berlin"
+
+    def test_open_water_still_resolves(self) -> None:
+        # timezonefinder covers the oceans with the nominal offset for
+        # the longitude, so a location shared at sea is not "no zone"
+        assert zone_for_location(0.0, -140.0) == "Etc/GMT+9"
+
+    def test_the_result_is_always_resolvable(self) -> None:
+        # whatever comes back is fed straight to resolve_timezone
+        for lat, lon in [(90, 0), (-90, 0), (0, 180), (0, -180)]:
+            assert resolve_timezone(zone_for_location(lat, lon)) is not None
+
+    def test_the_finder_is_built_once(self) -> None:
+        # the constructor maps the boundary data and costs ~0.7s; /start
+        # used to pay it per shared location, on the event loop
+        zone_for_location(52.52, 13.40)
+        first = timezones._location_finder()
+
+        assert timezones._location_finder() is first

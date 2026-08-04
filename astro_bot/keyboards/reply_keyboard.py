@@ -1,7 +1,7 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 
-def location_kayboard() -> ReplyKeyboardMarkup:
+def location_keyboard() -> ReplyKeyboardMarkup:
     location_key = KeyboardButton("Share location", request_location=True)
     default_key = KeyboardButton("Default time")
 
@@ -12,7 +12,7 @@ def location_kayboard() -> ReplyKeyboardMarkup:
     return keyboard
 
 
-def main_keyboard() -> None:
+def main_keyboard() -> ReplyKeyboardMarkup:
     buttons = [
         "Help",
         "Week",
