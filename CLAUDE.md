@@ -22,6 +22,17 @@ Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9,
 
 Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (for "Image of the day"; NASA's `DEMO_KEY` works for light use). Logs go to **both** `LOGGING_FILE` and stdout (so `docker logs astro-bot` works — it was file-only, and the container reported nothing); the file appends and rotates (`RotatingFileHandler`, 5 MB × 3 backups) rather than truncating at start, because `restart: unless-stopped` meant a crash loop erased the traceback that explained it, and `docker logs` only lives until the next CI deploy recreates the container. `LOGGING_FILE` is joined onto `BASE_PATH` like `DB`, so a relative name means "in the repo root" from any working directory rather than "wherever the process was started". Every module logs through its own `logging.getLogger(__name__)`, which is what makes `%(name)s` in `LOGGING_FORMAT` worth reading — a bare line number does not say whether a record came from `astro_bot.db` or from inside aiogram.
 
+## Hooks
+
+`.claude/settings.json` wires five hooks to scripts in `.claude/hooks/`; they encode the checks that were being run by hand every session, and the two boundaries this repo must not cross.
+
+- **`lint-file.sh`** (PostToolUse on Edit/Write) runs flake8 on the single file that changed, ~0.2s, and exits 2 so the violations come back as feedback rather than waiting for the pre-commit run. **`pytest-stop.sh`** (Stop, `async` + `asyncRewake`) runs the whole suite — 12s, which is why it is asynchronous: the answer is not blocked, and a failure wakes the model with the tail of the output. It skips when no `*.py` changed and records a hash of the working tree in `.git/claude-hooks/pytest.stamp`, so a clean tree does not pay for a rerun; a red run writes no stamp and therefore retries until it is green.
+- **`pre-push.sh`** (PreToolUse on Bash) is the local copy of the CI gate: a push to `main` redeploys the container over SSH, so flake8 and pytest run first and a red result denies the push instead of shipping it. It reuses the stamp above rather than running the suite a second time.
+- **`guard-bash.sh`** (PreToolUse on Bash) denies three things by pattern: writes into `../skyevents` (a separate repo with its own agent — reads are fine, writes are not), any command that would read `.env` into the transcript (it holds the live `TELEGRAM_BOT_TOKEN`), and bare `python`/`pip`, which do not exist outside the uv venv and only ever produced `exit 127`. `permissions.deny` covers the same two paths for Edit/Write, which never go through Bash. Regexes containing parentheses live in variables — `[[ $x =~ (a|b) ]]` is a bash *parse* error, not a runtime one, so an inline pattern breaks the hook for every command.
+- **`claudemd-drift.sh`** (Stop) says once per distinct file set when `astro_bot/*.py` moved and this file did not. Advisory only.
+
+Desktop notifications (`notify.sh` on Notification/Stop/TaskCompleted) are wired in `.claude/settings.local.json` instead — that file is git-ignored, and `notify-send` is a local convenience, not a project rule.
+
 ## Architecture
 
 Three layers, one direction of imports: `handlers/` → `services/` → `db.py`.

@@ -1,0 +1,63 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(//home/thinkx/www/skyevents/**)",
+      "Write(//home/thinkx/www/skyevents/**)",
+      "Read(//home/thinkx/www/astro_bot/.env)",
+      "Edit(//home/thinkx/www/astro_bot/.env)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-/home/thinkx/www/astro_bot}\"/.claude/hooks/lint-file.sh",
+            "timeout": 30,
+            "statusMessage": "flake8"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-/home/thinkx/www/astro_bot}\"/.claude/hooks/guard-bash.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-/home/thinkx/www/astro_bot}\"/.claude/hooks/pre-push.sh",
+            "timeout": 120,
+            "statusMessage": "gating the deploy on flake8 + pytest"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-/home/thinkx/www/astro_bot}\"/.claude/hooks/pytest-stop.sh",
+            "timeout": 300,
+            "async": true,
+            "asyncRewake": true,
+            "rewakeSummary": "pytest failed",
+            "statusMessage": "pytest"
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-/home/thinkx/www/astro_bot}\"/.claude/hooks/claudemd-drift.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
