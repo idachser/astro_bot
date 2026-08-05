@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from timezonefinder import TimezoneFinder
 
+logger = logging.getLogger(__name__)
+
 # One finder per thread, not per process. `zone_for_location` runs on
 # asyncio.to_thread workers, and timezonefinder is explicit that an
 # instance must not be shared across threads ("can lead to race
@@ -50,7 +52,7 @@ def resolve_timezone(tz_name: str) -> tzinfo:
         try:
             return ZoneInfo(tz_name)
         except (ZoneInfoNotFoundError, ValueError):
-            logging.warning(f"Unknown timezone: {tz_name}")
+            logger.warning(f"Unknown timezone: {tz_name}")
     return timezone.utc
 
 

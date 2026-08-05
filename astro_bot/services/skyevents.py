@@ -7,6 +7,8 @@ import requests
 
 from astro_bot.config import EVENTS_CACHE_TTL_SECONDS, SKYEVENTS_URL
 
+logger = logging.getLogger(__name__)
+
 # Windows are days wide, and a user is waiting on the other end: a
 # request that hangs holds a worker thread out of the shared to_thread
 # pool for the whole timeout
@@ -67,19 +69,19 @@ def _request_range(start: date, end: date) -> list | None:
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as err:
-        logging.exception(f"skyevents request failed for {params}: {err}")
+        logger.exception(f"skyevents request failed for {params}: {err}")
         return None
     except ValueError as err:
-        logging.exception(f"skyevents returned invalid JSON: {err}")
+        logger.exception(f"skyevents returned invalid JSON: {err}")
         return None
 
     try:
         coverage = payload["coverage"]
         if coverage is None:
-            logging.warning(f"skyevents has not generated {params} yet")
+            logger.warning(f"skyevents has not generated {params} yet")
             return None
         if not _covers(coverage, start, end):
-            logging.warning(f"skyevents covers only {coverage} of {params}")
+            logger.warning(f"skyevents covers only {coverage} of {params}")
             return None
 
         rows = [
@@ -107,7 +109,7 @@ def _request_range(start: date, end: date) -> list | None:
         # every field the payload is trusted for is read in here: a null
         # dt_utc, a date that does not parse, a JSON array where an
         # object belongs -- all of it is "the service did not answer"
-        logging.exception(f"skyevents returned an unexpected shape: {err}")
+        logger.exception(f"skyevents returned an unexpected shape: {err}")
         return None
 
 

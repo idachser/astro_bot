@@ -20,7 +20,7 @@ CI/CD: `.github/workflows/ci-cd.yml` runs flake8 + pytest on every push/PR; push
 
 Python is pinned to 3.11 (`.python-version`): aiogram 2.x requires aiohttp <3.9, which does not build on 3.12+. Upgrading to aiogram 3 would lift this.
 
-Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (for "Image of the day"; NASA's `DEMO_KEY` works for light use). Logs go to `astrobot.log` (overwritten each start).
+Requires a `.env` in the repo root: `TELEGRAM_BOT_TOKEN`, `DB` (SQLite filename), `NASA_IMAGE_OF_THE_DAY_TOKEN` (for "Image of the day"; NASA's `DEMO_KEY` works for light use). Logs go to **both** `LOGGING_FILE` and stdout (so `docker logs astro-bot` works — it was file-only, and the container reported nothing); the file appends and rotates (`RotatingFileHandler`, 5 MB × 3 backups) rather than truncating at start, because `restart: unless-stopped` meant a crash loop erased the traceback that explained it, and `docker logs` only lives until the next CI deploy recreates the container. `LOGGING_FILE` is joined onto `BASE_PATH` like `DB`, so a relative name means "in the repo root" from any working directory rather than "wherever the process was started". Every module logs through its own `logging.getLogger(__name__)`, which is what makes `%(name)s` in `LOGGING_FORMAT` worth reading — a bare line number does not say whether a record came from `astro_bot.db` or from inside aiogram.
 
 ## Architecture
 

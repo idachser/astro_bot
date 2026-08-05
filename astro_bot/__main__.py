@@ -1,8 +1,18 @@
 import logging
 import asyncio
+import sys
+from logging.handlers import RotatingFileHandler
+
 from aiogram import Bot, Dispatcher, types
 
-from astro_bot.config import TOKEN, LOGGING_FORMAT, LOGGING_FILE, LOGGING_MODE
+from astro_bot.config import (
+    TOKEN,
+    LOGGING_FORMAT,
+    LOGGING_FILE,
+    LOGGING_MODE,
+    LOGGING_MAX_BYTES,
+    LOGGING_BACKUP_COUNT,
+)
 from astro_bot.services.users import init_storage
 from astro_bot.handlers import (
     greeting,
@@ -18,16 +28,36 @@ from astro_bot.handlers import (
 )
 
 
+# The handlers are built by hand rather than left to basicConfig's
+# `filename=`, which installs a FileHandler and nothing else: in Docker
+# that left `docker logs astro-bot` empty, so the only way to see what
+# the bot was doing was to open the file inside the mounted volume.
+# Everything now goes to both, and stdout is what the container reports.
+# The file handler appends and rotates: it is the durable record, since
+# `docker logs` only survives until the next CI deploy recreates the
+# container. Rotation is what keeps appending from growing without bound
+# in the mounted volume -- the bot writes a handful of lines a day, so
+# 3 backups of 5 MB is months of history, not a retention policy.
 logging.basicConfig(
     format=LOGGING_FORMAT,
-    filename=LOGGING_FILE,
-    filemode=LOGGING_MODE,
     level=logging.INFO,
+    handlers=[
+        RotatingFileHandler(
+            LOGGING_FILE,
+            mode=LOGGING_MODE,
+            maxBytes=LOGGING_MAX_BYTES,
+            backupCount=LOGGING_BACKUP_COUNT,
+            encoding="utf-8",
+        ),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    logging.info("Start application")
+    logger.info("Start application")
     init_storage()
     bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
     dp = Dispatcher(bot)
@@ -54,7 +84,10 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print("\nApplication closed")
-        logging.info("Application closed")
+        logger.info("Application closed")
 
     except Exception as err:
-        logging.error(err)
+        # .exception, not .error: this is the one record that explains why
+        # the bot died, and str(err) alone gives neither the type nor the
+        # frame it came from -- it would point at this line, not the fault.
+        logger.exception(f"Application crashed: {err}")

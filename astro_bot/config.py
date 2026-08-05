@@ -27,11 +27,29 @@ DB = os.path.join(BASE_PATH, os.getenv("DB", ""))
 DIGEST_STATE_FILE = os.path.join(os.path.dirname(DB), "last_digest")
 
 # Formats
-LOGGING_FORMAT = "%(asctime)s | (line: %(lineno)s) %(levelname)s: %(message)s"
+# %(name)s is the logging module path (`astro_bot.db`, `aiogram.dispatcher`),
+# without which a bare line number says nothing about whose code emitted
+# the record -- every module logs through its own `getLogger(__name__)`.
+LOGGING_FORMAT = (
+    "%(asctime)s | %(name)s (line: %(lineno)s) %(levelname)s: %(message)s"
+)
 
 # Logging configuration
-LOGGING_FILE = os.getenv("LOGGING_FILE", "astrobot.log")
-LOGGING_MODE = "w"
+# Joined onto BASE_PATH for the same reason DB is: a bare filename is
+# relative to the working directory, and that only lined up with the
+# mounted ./data/ volume because Docker's WORKDIR happens to be /app.
+# An absolute LOGGING_FILE still wins -- os.path.join keeps it.
+LOGGING_FILE = os.path.join(
+    BASE_PATH, os.getenv("LOGGING_FILE", "astrobot.log")
+)
+# Appended to, not truncated at start. The file used to be opened "w",
+# which made a crash loop erase its own evidence: the bot dies writing a
+# traceback, `restart: unless-stopped` brings it back seconds later, and
+# the log an operator opens afterwards holds nothing but "Start
+# application". Rotation is what makes appending safe to leave running.
+LOGGING_MODE = "a"
+LOGGING_MAX_BYTES = 5 * 1024 * 1024
+LOGGING_BACKUP_COUNT = 3
 
 # URLs
 # skyevents computes the celestial events itself and serves them over

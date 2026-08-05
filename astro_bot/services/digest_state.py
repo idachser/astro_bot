@@ -3,6 +3,8 @@ from datetime import datetime
 
 from astro_bot.config import DIGEST_STATE_FILE
 
+logger = logging.getLogger(__name__)
+
 
 def read_last_slot(path: str = DIGEST_STATE_FILE) -> datetime | None:
     """The digest slot that last went out, or None if none is on record.
@@ -19,7 +21,7 @@ def read_last_slot(path: str = DIGEST_STATE_FILE) -> datetime | None:
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as err:
-        logging.warning(f"Could not read the digest marker at {path}: {err}")
+        logger.warning(f"Could not read the digest marker at {path}: {err}")
         return None
 
 
@@ -32,4 +34,4 @@ def record_slot(slot: datetime, path: str = DIGEST_STATE_FILE) -> None:
         with open(path, "w") as state:
             state.write(slot.isoformat())
     except OSError as err:
-        logging.warning(f"Could not record the digest marker at {path}: {err}")
+        logger.warning(f"Could not record the digest marker at {path}: {err}")

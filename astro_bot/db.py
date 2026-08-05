@@ -2,6 +2,8 @@ import logging
 import sqlite3 as sq3
 from sqlite3 import Error
 
+logger = logging.getLogger(__name__)
+
 
 def create_connection(db: str) -> sq3.Connection | None:
     """None when the file cannot be opened -- an unwritable volume or a
@@ -13,7 +15,7 @@ def create_connection(db: str) -> sq3.Connection | None:
     try:
         return sq3.connect(db)
     except Error as err:
-        logging.exception(f"DB CONNECT Error: {err}")
+        logger.exception(f"DB CONNECT Error: {err}")
         return None
 
 
@@ -23,7 +25,7 @@ def execute_query(conn: sq3.Connection, sql: str, params=()) -> None:
         cursor.execute(sql, params)
         conn.commit()
     except Error as err:
-        logging.exception(f"DB EXECUTE Query Error: {err}")
+        logger.exception(f"DB EXECUTE Query Error: {err}")
 
 
 def execute_read(conn: sq3.Connection, sql: str, params=()) -> list:
@@ -33,7 +35,7 @@ def execute_read(conn: sq3.Connection, sql: str, params=()) -> list:
         cursor.execute(sql, params)
         result = cursor.fetchall()
     except Error as err:
-        logging.exception(f"DB READ Error: {err}")
+        logger.exception(f"DB READ Error: {err}")
     return result
 
 
@@ -42,7 +44,7 @@ def db_init(db: str, sql: str) -> None:
     if conn:
         execute_query(conn, sql)
         conn.close()
-        logging.info("DB inited successfully")
+        logger.info("DB inited successfully")
 
 
 def write_into_db(db: str, sql: str, data: tuple = ()) -> None:

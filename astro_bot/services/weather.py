@@ -8,6 +8,8 @@ import requests
 from astro_bot.config import WEATHER_URL
 from astro_bot.timezones import is_date_only, resolve_timezone
 
+logger = logging.getLogger(__name__)
+
 REQUEST_TIMEOUT = 10
 CACHE_TTL_SECONDS = 3600
 FORECAST_HORIZON_DAYS = 7
@@ -56,7 +58,7 @@ def _fetch_day_forecast(
         KeyError,
         TypeError,
     ) as err:
-        logging.exception(f"Weather request failed: {err}")
+        logger.exception(f"Weather request failed: {err}")
 
 
 def _prune_expired(now: float) -> None:

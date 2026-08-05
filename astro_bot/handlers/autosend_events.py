@@ -16,6 +16,8 @@ from astro_bot.services.events import get_events_between
 from astro_bot.services.users import get_users_ids
 from astro_bot.templates import WEEK_DIGEST_MESSAGE
 
+logger = logging.getLogger(__name__)
+
 
 async def _fetch_week(today: date) -> list | None:
     """The week's events, retrying while skyevents cannot answer.
@@ -33,13 +35,13 @@ async def _fetch_week(today: date) -> list | None:
                 get_events_between, today, today + timedelta(days=6)
             )
         except Exception as err:
-            logging.exception(f"Weekly events request raised: {err}")
+            logger.exception(f"Weekly events request raised: {err}")
             events = None
 
         if events is not None:
             return events
         if delay is not None:
-            logging.warning(f"No events for the digest, retrying in {delay}s")
+            logger.warning(f"No events for the digest, retrying in {delay}s")
             await asyncio.sleep(delay)
 
     return None
@@ -60,10 +62,10 @@ async def send_weekly_digest(bot: Bot, today: date) -> bool:
 
     events = await _fetch_week(today)
     if events is None:
-        logging.error("skyevents unreachable, weekly digest not sent")
+        logger.error("skyevents unreachable, weekly digest not sent")
         return False
     if not events:
-        logging.warning("No events for the weekly digest, nothing sent")
+        logger.warning("No events for the weekly digest, nothing sent")
         return False
 
     digest = WEEK_DIGEST_MESSAGE(events)
@@ -83,13 +85,13 @@ async def send_weekly_digest(bot: Bot, today: date) -> bool:
             )
             delivered += 1
         except Exception as err:
-            logging.error(f"Digest was not sent to {user_id}: {err}")
+            logger.error(f"Digest was not sent to {user_id}: {err}")
 
     if not delivered:
         # Every send failed (an unreachable Telegram, a rejected token):
         # reporting success here would file the slot as broadcast and
         # talk the catch-up out of the retry it exists for
-        logging.error("Weekly digest reached nobody")
+        logger.error("Weekly digest reached nobody")
     return delivered > 0
 
 
@@ -152,7 +154,7 @@ async def _broadcast(bot: Bot, slot: datetime) -> None:
     """
 
     if read_last_slot() == slot:
-        logging.info(f"Digest for {slot.isoformat()} already sent, skipping")
+        logger.info(f"Digest for {slot.isoformat()} already sent, skipping")
         return
     if await send_weekly_digest(bot, slot.date()):
         record_slot(slot)
@@ -187,16 +189,16 @@ async def scheduler(bot: Bot) -> None:
 
     now = datetime.now(timezone.utc)
     if missed_digest_slot(now):
-        logging.warning("Started just past the digest slot, sending now")
+        logger.warning("Started just past the digest slot, sending now")
         try:
             await _broadcast(bot, last_digest_slot(now))
         except Exception as err:
-            logging.exception(f"Catch-up digest failed: {err}")
+            logger.exception(f"Catch-up digest failed: {err}")
 
     while True:
         now = datetime.now(timezone.utc)
         target = next_digest_time(now)
-        logging.info(f"Next weekly digest at {target.isoformat()}")
+        logger.info(f"Next weekly digest at {target.isoformat()}")
         await asyncio.sleep((target - now).total_seconds())
 
         # asyncio.sleep counts monotonic seconds while the slot is wall
@@ -204,10 +206,10 @@ async def scheduler(bot: Bot) -> None:
         # here early, and sending anyway would mail a second copy to
         # everyone. Recompute and wait the remainder out instead.
         if datetime.now(timezone.utc) < target:
-            logging.warning("Woke before the digest slot, waiting again")
+            logger.warning("Woke before the digest slot, waiting again")
             continue
 
         try:
             await _broadcast(bot, target)
         except Exception as err:
-            logging.exception(f"Weekly digest failed: {err}")
+            logger.exception(f"Weekly digest failed: {err}")

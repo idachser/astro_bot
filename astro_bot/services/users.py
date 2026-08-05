@@ -14,6 +14,8 @@ from astro_bot.db_queries import (
     upsert_user,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _enable_wal(db: str) -> None:
     """Switch the file to write-ahead logging, where a reader and a
@@ -29,7 +31,7 @@ def _enable_wal(db: str) -> None:
 
     mode = read_from_db(db, select_journal_mode_wal)
     if not mode or mode[0][0].lower() != "wal":
-        logging.warning(f"Could not switch DB to WAL, journal mode: {mode}")
+        logger.warning(f"Could not switch DB to WAL, journal mode: {mode}")
 
 
 def init_storage(db: str = DB) -> None:

@@ -6,5 +6,6 @@ venv/
 .venv/
 astro_bot_v1/
 astrobot.log
+astrobot.log.*
 astrobase.db
 data/
