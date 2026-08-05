@@ -9,6 +9,7 @@ from astro_bot.timezones import (
     today_in,
     zone_for_location,
 )
+from tests.harness import serving_events, serving_profile
 
 
 class TestTodayIn:
@@ -28,64 +29,52 @@ class TestDayMessageProfileReads:
     per message, and reading it in a handler puts it on the event loop
     """
 
-    def profile_counter(self, monkeypatch, tz: str = ""):
-        reads = []
-
-        def fake_profile(user_id, db=None):
-            reads.append(user_id)
-            return (tz, None, None)
-
-        monkeypatch.setattr(
-            day_message, "get_user_profile", fake_profile
-        )
-        monkeypatch.setattr(
-            day_message, "get_events_on_day", lambda day, tz="": []
-        )
-        return reads
-
-    def test_profile_is_read_once_per_message(self, monkeypatch) -> None:
-        reads = self.profile_counter(monkeypatch)
-
-        day, msg = day_message.get_day_message(42, lambda today: today)
+    def test_profile_is_read_once_per_message(self) -> None:
+        with serving_events(day_message, [], attr="get_events_on_day"):
+            with serving_profile(day_message) as reads:
+                _, msg = day_message.get_day_message(
+                    42, lambda today: today
+                )
 
         assert reads == [42]
         assert msg == day_message.NOTHING_NEWS_FOUND
 
-    def test_picked_day_is_anchored_on_the_user_zone(
-        self, monkeypatch
-    ) -> None:
+    def test_picked_day_is_anchored_on_the_user_zone(self) -> None:
         """Kiritimati is UTC+14, so its local date can be a day ahead
         of the server's"""
 
-        self.profile_counter(monkeypatch, tz="Pacific/Kiritimati")
         expected = datetime.now(ZoneInfo("Pacific/Kiritimati")).date()
 
-        day, _ = day_message.get_day_message(42, lambda today: today)
+        with serving_events(day_message, [], attr="get_events_on_day"):
+            with serving_profile(day_message, tz="Pacific/Kiritimati"):
+                day, _ = day_message.get_day_message(
+                    42, lambda today: today
+                )
 
         assert day == expected
 
-    def test_unavailable_service_is_not_an_empty_day(
-        self, monkeypatch
-    ) -> None:
+    def test_unavailable_service_is_not_an_empty_day(self) -> None:
         """Events are read live now: an outage must not read as a quiet
         sky"""
 
-        self.profile_counter(monkeypatch)
-        monkeypatch.setattr(
-            day_message, "get_events_on_day", lambda day, tz="": None
-        )
-
-        _, msg = day_message.get_day_message(42, lambda today: today)
+        with serving_events(day_message, None, attr="get_events_on_day"):
+            with serving_profile(day_message):
+                _, msg = day_message.get_day_message(
+                    42, lambda today: today
+                )
 
         assert msg == day_message.EVENTS_UNAVAILABLE_MESSAGE
 
-    def test_pick_day_may_ignore_today(self, monkeypatch) -> None:
+    def test_pick_day_may_ignore_today(self) -> None:
         """The week arrows carry an explicit target day"""
 
-        self.profile_counter(monkeypatch)
         target = date(2026, 7, 15)
 
-        day, _ = day_message.get_day_message(42, lambda today: target)
+        with serving_events(day_message, [], attr="get_events_on_day"):
+            with serving_profile(day_message):
+                day, _ = day_message.get_day_message(
+                    42, lambda today: target
+                )
 
         assert day == target
 

@@ -5,14 +5,13 @@ from astro_bot.keyboards.inline_keyboard import (
     get_inline_week_keyboard,
     parse_week_callback,
 )
+from tests.harness import event_row
 
-EVENT_ROW = (
+EVENT_ROW = event_row(
     "2026-07-03T10:02:46+00:00",
-    "Full Moon",
-    "The Moon reaches full phase.",
-    "https://in-the-sky.org/news.php?id=1",
+    url="https://in-the-sky.org/news.php?id=1",
 )
-MIDNIGHT_ROW = (
+MIDNIGHT_ROW = event_row(
     "2026-07-03T00:00:00+00:00",
     "Meteor shower peak",
     "",

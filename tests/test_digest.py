@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 import pytest
 
@@ -9,23 +9,13 @@ from astro_bot.config import (
     DIGEST_RETRY_DELAYS,
 )
 from astro_bot.handlers import autosend_events
+from tests.harness import FakeBot, event_row, frozen_now, utc
 
 
-EVENTS = [("2026-07-03T10:00:00+00:00", "Full moon", "", "")]
+EVENTS = [event_row("2026-07-03T10:00:00+00:00", "Full moon", "")]
 
 
 SATURDAY_DATE = date(2026, 8, 8)
-
-
-class FakeBot:
-    def __init__(self, refuse: bool = False) -> None:
-        self.sent = []
-        self.refuse = refuse
-
-    async def send_message(self, user_id, text, **kwargs) -> None:
-        if self.refuse:
-            raise RuntimeError("Telegram unreachable")
-        self.sent.append((user_id, text))
 
 
 def run_digest(monkeypatch, outcomes: list, bot=None) -> tuple:
@@ -115,10 +105,6 @@ class TestWeeklyDigest:
         _, _, delivered = run_digest(monkeypatch, [None] * attempts)
 
         assert delivered is False
-
-
-def utc(year, month, day, hour=0, minute=0) -> datetime:
-    return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
 
 
 class TestNextDigestTime:
@@ -284,11 +270,6 @@ class TestSchedulerStartup:
     ) -> tuple:
         sent, slept, recorded = [], [], []
 
-        class FrozenDatetime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return now
-
         async def fake_send(bot, today) -> bool:
             sent.append(today)
             return sends
@@ -297,16 +278,16 @@ class TestSchedulerStartup:
             slept.append(delay)
             raise SystemExit  # stop at the first scheduled wait
 
-        monkeypatch.setattr(autosend_events, "datetime", FrozenDatetime)
         monkeypatch.setattr(autosend_events, "send_weekly_digest", fake_send)
         monkeypatch.setattr(autosend_events, "read_last_slot", lambda: last)
         monkeypatch.setattr(autosend_events, "record_slot", recorded.append)
         monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
-        try:
-            asyncio.run(autosend_events.scheduler(None))
-        except SystemExit:
-            pass
+        with frozen_now(autosend_events, now):
+            try:
+                asyncio.run(autosend_events.scheduler(None))
+            except SystemExit:
+                pass
         return sent, slept, recorded
 
     def test_restart_inside_the_window_sends_before_sleeping(
