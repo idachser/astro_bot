@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -9,7 +9,13 @@ from astro_bot.config import (
     DIGEST_RETRY_DELAYS,
 )
 from astro_bot.handlers import autosend_events
-from tests.harness import FakeBot, event_row, frozen_now, utc
+from tests.harness import (
+    FakeBot,
+    event_row,
+    frozen_now,
+    movable_now,
+    utc,
+)
 
 
 EVENTS = [event_row("2026-07-03T10:00:00+00:00", "Full moon", "")]
@@ -341,3 +347,101 @@ class TestSchedulerStartup:
         assert slept == [(utc(2026, 8, 15, DIGEST_HOUR_UTC)
                           - utc(2026, 8, 8, DIGEST_HOUR_UTC + 4))
                          .total_seconds()]
+
+
+WEDNESDAY = utc(2026, 8, 5, 23, 30)
+SLOT = utc(2026, 8, 8, DIGEST_HOUR_UTC)
+A_WEEK = 7 * 24 * 3600.0
+
+
+class TestSchedulerLoop:
+    """Past the first sleep. `asyncio.sleep` counts monotonic seconds
+    while the slot is a wall clock time, so waking up is not proof that
+    the slot arrived: a host or NTP step backwards lands the loop early,
+    and sending on arrival alone would mail a second copy to everyone.
+    """
+
+    def run_loop(
+        self, monkeypatch, start: datetime, wakes: list, sends: bool = True
+    ) -> tuple:
+        """Run the loop with a scripted clock: each `asyncio.sleep`
+        moves it to the next moment in `wakes`, and running out of them
+        stops the loop. The marker is stateful, as the file is."""
+
+        sent, slept, recorded = [], [], []
+        waking = list(wakes)
+
+        with movable_now(autosend_events, start) as clock:
+            async def fake_sleep(delay) -> None:
+                slept.append(delay)
+                if not waking:
+                    raise SystemExit
+                clock.set(waking.pop(0))
+
+            async def fake_send(bot, today) -> bool:
+                sent.append(today)
+                return sends
+
+            monkeypatch.setattr(
+                autosend_events, "send_weekly_digest", fake_send
+            )
+            monkeypatch.setattr(
+                autosend_events, "record_slot", recorded.append
+            )
+            monkeypatch.setattr(
+                autosend_events,
+                "read_last_slot",
+                lambda: recorded[-1] if recorded else None,
+            )
+            monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+            try:
+                asyncio.run(autosend_events.scheduler(None))
+            except SystemExit:
+                pass
+
+        return sent, slept, recorded
+
+    def test_waking_before_the_slot_waits_out_the_remainder(
+        self, monkeypatch
+    ) -> None:
+        sent, slept, recorded = self.run_loop(
+            monkeypatch, WEDNESDAY, [SLOT - timedelta(hours=1)]
+        )
+
+        assert sent == []
+        assert recorded == []
+        assert slept == [(SLOT - WEDNESDAY).total_seconds(), 3600.0]
+
+    def test_waking_on_the_slot_broadcasts_and_stands_down(
+        self, monkeypatch
+    ) -> None:
+        sent, slept, recorded = self.run_loop(
+            monkeypatch, WEDNESDAY, [SLOT]
+        )
+
+        assert sent == [SATURDAY_DATE]
+        assert recorded == [SLOT]
+        assert slept == [(SLOT - WEDNESDAY).total_seconds(), A_WEEK]
+
+    def test_a_clock_stepped_back_after_a_send_does_not_repeat_it(
+        self, monkeypatch
+    ) -> None:
+        """The scheduled path leans on the marker too: stepping the
+        clock back after a broadcast puts `next_digest_time` right back
+        on the slot that just fired."""
+
+        sent, slept, recorded = self.run_loop(
+            monkeypatch,
+            WEDNESDAY,
+            [SLOT, SLOT - timedelta(minutes=5), SLOT],
+        )
+
+        assert sent == [SATURDAY_DATE]
+        assert recorded == [SLOT]
+        assert slept == [
+            (SLOT - WEDNESDAY).total_seconds(),
+            A_WEEK,
+            300.0,
+            A_WEEK,
+        ]

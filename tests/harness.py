@@ -14,7 +14,7 @@ that can lie about the code under it.
 """
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from astro_bot import db
 from astro_bot import db_queries as q
@@ -54,9 +54,25 @@ class FakeBot:
         self.sent.append((user_id, text))
 
 
+class Clock:
+    """A wall clock the caller moves by hand — forwards for elapsed
+    time, backwards for the NTP step that `asyncio.sleep`'s monotonic
+    seconds cannot see."""
+
+    def __init__(self, moment: datetime) -> None:
+        self.moment = moment
+
+    def set(self, moment: datetime) -> None:
+        self.moment = moment
+
+    def advance(self, seconds: float) -> None:
+        self.moment += timedelta(seconds=seconds)
+
+
 @contextmanager
-def frozen_now(module, moment: datetime):
-    """Freeze `datetime.now()` inside `module` at `moment`.
+def movable_now(module, start: datetime):
+    """Put a movable clock behind `datetime.now()` inside `module`,
+    yielding the `Clock` that drives it.
 
     Subclassing datetime and rebinding the module's name is the only
     form that leaves `datetime.now(tz)`, arithmetic and comparisons
@@ -65,17 +81,29 @@ def frozen_now(module, moment: datetime):
     other use of the name in the module.
     """
 
-    class Frozen(datetime):
+    clock = Clock(start)
+
+    class Movable(datetime):
         @classmethod
         def now(cls, tz=None) -> datetime:
-            return moment
+            return clock.moment
 
     original = module.datetime
-    module.datetime = Frozen
+    module.datetime = Movable
     try:
-        yield moment
+        yield clock
     finally:
         module.datetime = original
+
+
+@contextmanager
+def frozen_now(module, moment: datetime):
+    """Freeze `datetime.now()` inside `module` at `moment`. Use
+    `movable_now` when the code under test runs long enough to see the
+    clock move — a scheduler loop past its first sleep, say."""
+
+    with movable_now(module, moment):
+        yield moment
 
 
 @contextmanager
