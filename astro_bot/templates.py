@@ -1,7 +1,9 @@
-from datetime import date, datetime
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 from aiogram.utils.markdown import hbold, hlink, quote_html
 
+from astro_bot.config import WEEK_LENGTH
 from astro_bot.timezones import is_date_only, resolve_timezone
 
 
@@ -41,6 +43,7 @@ START_MESSAGE = f"""You can send me commands (press keys):
 HELP_MESSAGE = COMMANDS_LIST
 
 NOTHING_NEWS_FOUND = "No events found..."
+NO_EVENTS_THAT_DAY = "no events"
 # Distinct from NOTHING_NEWS_FOUND on purpose: events are read live, and
 # an unreachable service must not be reported as a quiet sky
 EVENTS_UNAVAILABLE_MESSAGE = "Can't get the events now. Try later."
@@ -70,9 +73,12 @@ def format_event_time(dt_utc: str, tz: str = "") -> str:
 
 
 def MESSAGE_WITH_DAY_EVENTS(day: date, events: list, tz: str = "") -> str:
-    """Message for one day: (dt_utc, summary, description, url) rows"""
+    """Message for one day: (dt_utc, summary, description, url) rows.
+    An empty day keeps its title."""
 
     lines = [hbold(format_day_title(day)), ""]
+    if not events:
+        lines.append(NOTHING_NEWS_FOUND)
     for dt_utc, summary, description, url in events:
         title = hlink(summary, url) if url else hbold(summary)
         lines.append(title + format_event_time(dt_utc, tz))
@@ -96,13 +102,25 @@ def WEATHER_FOOTER(weather: list) -> str:
     return "\n".join(lines)
 
 
-def WEEK_DIGEST_MESSAGE(events: list) -> str:
-    """One-line-per-event digest for the upcoming week"""
+def WEEK_DIGEST_MESSAGE(start: date, events: list) -> str:
+    """Digest for the WEEK_LENGTH days from `start`, one line per event
+    and one for every day without any. Dates are UTC, like the window."""
+
+    by_day = defaultdict(list)
+    for dt_utc, summary, description, url in events:
+        by_day[datetime.fromisoformat(dt_utc).date()].append(summary)
 
     lines = [hbold("Celestial events for the upcoming week:"), ""]
-    for dt_utc, summary, description, url in events:
-        dt = datetime.fromisoformat(dt_utc)
-        lines.append(f"{dt:%a} {dt.day} {dt:%B} — {quote_html(summary)}")
+    for offset in range(WEEK_LENGTH):
+        day = start + timedelta(days=offset)
+        label = f"{day:%a} {day.day} {day:%B}"
+        summaries = by_day.get(day)
+        if summaries:
+            lines += [
+                f"{label} — {quote_html(summary)}" for summary in summaries
+            ]
+        else:
+            lines.append(f"{label} — {NO_EVENTS_THAT_DAY}")
 
     lines += ["", "Computed with Skyfield and JPL DE440s"]
     return "\n".join(lines)

@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from aiogram import types
 
-WEEK_LENGTH = 7
+from astro_bot.config import WEEK_LENGTH
 
 
 def _callback(anchor: date, day: date) -> str:

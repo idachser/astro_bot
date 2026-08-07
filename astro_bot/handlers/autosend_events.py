@@ -9,6 +9,7 @@ from astro_bot.config import (
     DIGEST_HOUR_UTC,
     DIGEST_RETRY_DELAYS,
     SATURDAY,
+    WEEK_LENGTH,
 )
 from astro_bot.keyboards.inline_keyboard import get_inline_week_keyboard
 from astro_bot.services.digest_state import read_last_slot, record_slot
@@ -32,7 +33,9 @@ async def _fetch_week(today: date) -> list | None:
     for delay in (*DIGEST_RETRY_DELAYS, None):
         try:
             events = await asyncio.to_thread(
-                get_events_between, today, today + timedelta(days=6)
+                get_events_between,
+                today,
+                today + timedelta(days=WEEK_LENGTH - 1),
             )
         except Exception as err:
             logger.exception(f"Weekly events request raised: {err}")
@@ -65,10 +68,13 @@ async def send_weekly_digest(bot: Bot, today: date) -> bool:
         logger.error("skyevents unreachable, weekly digest not sent")
         return False
     if not events:
+        # Kept deliberately, against the rule that every day of the
+        # window gets named even when empty: a week with nothing in it
+        # anywhere is not worth broadcasting seven "no events" lines for.
         logger.warning("No events for the weekly digest, nothing sent")
         return False
 
-    digest = WEEK_DIGEST_MESSAGE(events)
+    digest = WEEK_DIGEST_MESSAGE(today, events)
     delivered = 0
     # Small read, but it is still SQLite: the only blocking DB call left
     # on the event loop was this one

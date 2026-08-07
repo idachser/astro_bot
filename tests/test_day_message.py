@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from astro_bot.handlers import get_specific_date_event as day_message
-from astro_bot import timezones
+from astro_bot import templates, timezones
 from astro_bot.timezones import (
     resolve_timezone,
     today_in,
@@ -37,7 +37,7 @@ class TestDayMessageProfileReads:
                 )
 
         assert reads == [42]
-        assert msg == day_message.NOTHING_NEWS_FOUND
+        assert templates.NOTHING_NEWS_FOUND in msg
 
     def test_picked_day_is_anchored_on_the_user_zone(self) -> None:
         """Kiritimati is UTC+14, so its local date can be a day ahead
@@ -53,6 +53,18 @@ class TestDayMessageProfileReads:
 
         assert day == expected
 
+    def test_empty_day_is_titled(self) -> None:
+        target = date(2026, 7, 15)
+
+        with serving_events(day_message, [], attr="get_events_on_day"):
+            with serving_profile(day_message):
+                _, msg = day_message.get_day_message(
+                    42, lambda today: target
+                )
+
+        assert templates.format_day_title(target) in msg
+        assert templates.NOTHING_NEWS_FOUND in msg
+
     def test_unavailable_service_is_not_an_empty_day(self) -> None:
         """Events are read live now: an outage must not read as a quiet
         sky"""
@@ -64,6 +76,7 @@ class TestDayMessageProfileReads:
                 )
 
         assert msg == day_message.EVENTS_UNAVAILABLE_MESSAGE
+        assert templates.NOTHING_NEWS_FOUND not in msg
 
     def test_pick_day_may_ignore_today(self) -> None:
         """The week arrows carry an explicit target day"""

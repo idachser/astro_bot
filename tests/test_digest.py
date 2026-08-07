@@ -18,10 +18,11 @@ from tests.harness import (
 )
 
 
-EVENTS = [event_row("2026-07-03T10:00:00+00:00", "Full moon", "")]
-
-
 SATURDAY_DATE = date(2026, 8, 8)
+
+# Inside SATURDAY_DATE's window: the digest walks the days of the window
+# now, so a row outside it renders nowhere.
+EVENTS = [event_row("2026-08-11T10:00:00+00:00", "Full moon", "")]
 
 
 def run_digest(monkeypatch, outcomes: list, bot=None) -> tuple:
@@ -74,6 +75,8 @@ class TestWeeklyDigest:
         assert slept == list(DIGEST_RETRY_DELAYS)
 
     def test_empty_week_sends_nothing(self, monkeypatch) -> None:
+        # the one week the digest stays silent about: every *day* of a
+        # non-empty week is named even when it holds nothing
         sent, slept, _ = run_digest(monkeypatch, [[]])
 
         assert sent == []

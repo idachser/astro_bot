@@ -63,6 +63,8 @@ WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 # Events
 EVENTS_CACHE_TTL_SECONDS = 3600
 
+WEEK_LENGTH = 7
+
 # Scheduler
 SATURDAY = 5
 # The broadcast goes out at a fixed UTC slot rather than "whenever the

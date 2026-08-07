@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from astro_bot import templates
+from astro_bot.config import WEEK_LENGTH
 from astro_bot.keyboards.inline_keyboard import (
     get_inline_week_keyboard,
     parse_week_callback,
@@ -42,6 +43,12 @@ class TestDayMessage:
         )
         assert "(13:02 MSK)" in msg
 
+    def test_empty_day_keeps_its_title(self) -> None:
+        msg = templates.MESSAGE_WITH_DAY_EVENTS(date(2026, 7, 3), [])
+
+        assert "Friday, July 3" in msg
+        assert templates.NOTHING_NEWS_FOUND in msg
+
     def test_second_precision_midnight_is_a_real_time(self) -> None:
         time_ = templates.format_event_time("2026-07-03T00:00:45+00:00")
         assert time_ == " (00:00 UTC)"
@@ -81,10 +88,39 @@ class TestImageMessage:
 
 
 class TestWeekDigest:
+    WINDOW_START = date(2026, 6, 29)
+
+    def digest(self, events: list) -> str:
+        return templates.WEEK_DIGEST_MESSAGE(self.WINDOW_START, events)
+
     def test_one_line_per_event(self) -> None:
-        msg = templates.WEEK_DIGEST_MESSAGE([EVENT_ROW, MIDNIGHT_ROW])
+        msg = self.digest([EVENT_ROW, MIDNIGHT_ROW])
         assert "Fri 3 July — Full Moon" in msg
         assert "Fri 3 July — Meteor shower peak" in msg
+
+    def test_every_day_of_the_window_gets_a_line(self) -> None:
+        msg = self.digest([EVENT_ROW])
+        days = [
+            self.WINDOW_START + timedelta(days=offset)
+            for offset in range(WEEK_LENGTH)
+        ]
+
+        assert [f"{day:%a} {day.day} {day:%B}" in msg for day in days] == (
+            [True] * WEEK_LENGTH
+        )
+
+    def test_a_day_without_events_says_so(self) -> None:
+        msg = self.digest([EVENT_ROW])
+
+        assert f"Mon 29 June — {templates.NO_EVENTS_THAT_DAY}" in msg
+        assert "Fri 3 July — Full Moon" in msg
+
+    def test_events_outside_the_window_are_not_listed(self) -> None:
+        outside = event_row("2026-07-20T10:00:00+00:00", "Perseids", "")
+        msg = self.digest([EVENT_ROW, outside])
+
+        assert "Perseids" not in msg
+        assert "20 July" not in msg
 
 
 class TestWeekKeyboard:
