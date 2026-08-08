@@ -124,7 +124,7 @@ class TestWeekDigest:
 
 
 class TestWeekKeyboard:
-    def get_callbacks(self, day: date, anchor: date = None) -> list:
+    def get_callbacks(self, day: date, anchor: date) -> list:
         keyboard = get_inline_week_keyboard(day, anchor)
         return [
             button.callback_data
@@ -132,34 +132,23 @@ class TestWeekKeyboard:
         ]
 
     def test_midweek_points_to_neighbours(self) -> None:
-        # 2026-07-01 is Wednesday
-        assert self.get_callbacks(date(2026, 7, 1)) == [
+        assert self.get_callbacks(date(2026, 7, 1), date(2026, 6, 29)) == [
             "week_2026-06-29_2026-06-30",
             "week_2026-06-29_2026-07-02",
         ]
 
-    def test_monday_wraps_back_to_sunday(self) -> None:
-        assert self.get_callbacks(date(2026, 6, 29)) == [
-            "week_2026-06-29_2026-07-05",
-            "week_2026-06-29_2026-06-30",
-        ]
-
-    def test_sunday_wraps_forward_to_monday(self) -> None:
-        assert self.get_callbacks(date(2026, 7, 5)) == [
-            "week_2026-06-29_2026-07-04",
-            "week_2026-06-29_2026-06-29",
-        ]
-
-    def test_anchor_wraps_within_its_own_window(self) -> None:
-        # the digest's window: Saturday and the six days after it
-        saturday = date(2026, 8, 8)
-        assert self.get_callbacks(saturday, anchor=saturday) == [
+    def test_first_day_wraps_back_to_the_last(self) -> None:
+        anchor = date(2026, 8, 8)
+        assert self.get_callbacks(anchor, anchor) == [
             "week_2026-08-08_2026-08-14",
             "week_2026-08-08_2026-08-09",
         ]
-        # ...and the far end wraps back to the Saturday, never into the
-        # Mon-Sun week the anchor happens to sit in
-        assert self.get_callbacks(date(2026, 8, 14), anchor=saturday) == [
+
+    def test_last_day_wraps_forward_to_the_first(self) -> None:
+        anchor = date(2026, 8, 8)
+        # never onto 08-15: the window is the anchor's own seven days,
+        # not a week that slides along with the day being shown
+        assert self.get_callbacks(date(2026, 8, 14), anchor) == [
             "week_2026-08-08_2026-08-13",
             "week_2026-08-08_2026-08-08",
         ]

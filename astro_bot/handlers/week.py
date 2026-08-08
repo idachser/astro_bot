@@ -17,15 +17,15 @@ async def get_week_msg_text(message: types.Message) -> None:
     )
     await message.answer(
         msg,
-        reply_markup=get_inline_week_keyboard(day),
+        reply_markup=get_inline_week_keyboard(day, day),
         disable_web_page_preview=True,
     )
 
 
 async def switch_week_day(call: types.CallbackQuery) -> None:
-    # The window travels in the callback: the digest paginates its own
-    # seven days (Sat..Fri), the "Week" button a Mon-Sun week, and this
-    # one handler serves both with nothing else to tell them apart
+    # The window travels in the callback because the shown day moves and
+    # the window must not: re-anchoring on `target` here would page a
+    # fresh seven days forward on every press instead of wrapping
     anchor, target = parse_week_callback(call.data)
     day, msg = await asyncio.to_thread(
         get_day_message, call.from_user.id, lambda today: target

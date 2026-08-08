@@ -83,10 +83,7 @@ async def send_weekly_digest(bot: Bot, today: date) -> bool:
             await bot.send_message(
                 user_id,
                 digest,
-                # anchored to the digest's own week (today..today+6), not
-                # to the Mon-Sun one today falls in -- the arrows have to
-                # page through the days the message actually lists
-                reply_markup=get_inline_week_keyboard(today, anchor=today),
+                reply_markup=get_inline_week_keyboard(today, today),
                 disable_web_page_preview=True,
             )
             delivered += 1

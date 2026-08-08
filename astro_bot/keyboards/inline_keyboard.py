@@ -26,24 +26,18 @@ def parse_week_callback(data: str) -> tuple[date, date]:
 
 
 def get_inline_week_keyboard(
-    day: date, anchor: date | None = None
+    day: date, anchor: date
 ) -> types.InlineKeyboardMarkup:
     """Arrows over the seven days starting at `anchor`, wrapping at both
-    ends. `anchor` defaults to the Monday of `day`'s week -- the Mon-Sun
-    window the "Week" button browses.
-
-    The Saturday digest passes its own first day instead, because it
-    lists `today..today+6` and that straddles a Mon-Sun boundary: with a
-    Monday anchor its arrows walked five days it never mentioned (all of
-    them past) and could not reach five of the seven it did.
+    ends.
 
     The anchor rides along in the callback data because pagination keeps
-    no state -- the callback is the only thing that can say which seven
-    days the message it belongs to was built for.
+    no state, and it cannot be re-derived from `day`: after the first
+    press the shown day is no longer the window's first one, so deriving
+    it would push the window forward with every press instead of
+    wrapping.
     """
 
-    if anchor is None:
-        anchor = day - timedelta(days=day.weekday())
     end = anchor + timedelta(days=WEEK_LENGTH - 1)
     previous_day = day - timedelta(days=1) if day > anchor else end
     next_day = day + timedelta(days=1) if day < end else anchor
