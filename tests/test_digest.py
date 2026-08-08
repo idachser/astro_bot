@@ -60,6 +60,25 @@ class TestWeeklyDigest:
         assert "Full moon" in sent[0][1]
         assert slept == []
 
+    def test_keyboard_pages_the_week_the_message_lists(
+        self, monkeypatch
+    ) -> None:
+        # the digest's own seven days: the text names 8-14 August, so
+        # the arrows under it must not walk the Mon-Sun week the
+        # Saturday sits in
+        bot = FakeBot()
+        sent, _, _ = run_digest(monkeypatch, [EVENTS], bot=bot)
+
+        assert "Sat 8 August" in sent[0][1]
+        assert "Fri 14 August" in sent[0][1]
+        assert [
+            button.callback_data
+            for button in bot.markups[0].inline_keyboard[0]
+        ] == [
+            "week_2026-08-08_2026-08-14",
+            "week_2026-08-08_2026-08-09",
+        ]
+
     def test_retries_while_skyevents_is_cold(self, monkeypatch) -> None:
         sent, slept, _ = run_digest(monkeypatch, [None, None, EVENTS])
 

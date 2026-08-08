@@ -42,16 +42,25 @@ def event_row(
 
 class FakeBot:
     """Telegram without Telegram. `refuse=True` is the bot every user
-    has blocked: each send raises, so nothing is delivered."""
+    has blocked: each send raises, so nothing is delivered.
+
+    `markups` holds the keyboard each message went out with, in step
+    with `sent` — a message and the arrows under it have to cover the
+    same week, and that is only checkable here.
+    """
 
     def __init__(self, refuse: bool = False) -> None:
         self.sent = []
+        self.markups = []
         self.refuse = refuse
 
-    async def send_message(self, user_id, text, **kwargs) -> None:
+    async def send_message(
+        self, user_id, text, reply_markup=None, **kwargs
+    ) -> None:
         if self.refuse:
             raise RuntimeError("Telegram unreachable")
         self.sent.append((user_id, text))
+        self.markups.append(reply_markup)
 
 
 class Clock:
